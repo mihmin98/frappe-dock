@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Frappe Dock
+Comment=A dock for KDE Plasma
+Icon=preferences-desktop
+Exec=@FRAPPE_DOCK_INSTALLED_BINARY@
+NoDisplay=true
+X-KDE-Wayland-Interfaces=org_kde_plasma_window_management

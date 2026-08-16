@@ -1,0 +1,9 @@
+File=frappeconfig.kcfg
+ClassName=FrappeConfig
+NameSpace=frappe
+Singleton=true
+Mutators=true
+# KCoreConfigSkeleton rather than KConfigSkeleton: the latter lives in
+# KF6::ConfigGui, which links Qt6::Gui, and core must not.
+Inherits=KCoreConfigSkeleton
+IncludeFiles=KCoreConfigSkeleton

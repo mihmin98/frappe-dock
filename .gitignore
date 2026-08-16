@@ -54,3 +54,25 @@ compile_commands.json
 *creator.user*
 
 *_qmlcache.qrc
+
+# Frappe Dock
+cmake-build-*/
+install/
+*_automoc.cpp
+.qt/
+CMakeCache.txt
+CMakeFiles/
+Testing/
+.idea/
+.vscode/
+*.swp
+*~
+
+.tasks/
+.reference-screenshots/
+docs/
+tools/
+
+CLAUDE.md
+README.md
+plan.md

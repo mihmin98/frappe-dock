@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Frappe Test Hidden
+Icon=frappe-test-hidden-icon
+Exec=/bin/true
+Terminal=false
+NoDisplay=true

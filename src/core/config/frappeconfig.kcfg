@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name="frappe-dockrc"/>
+
+  <group name="General">
+    <entry name="position" type="Enum">
+      <label>Screen edge the dock is anchored to</label>
+      <choices>
+        <choice name="Bottom"/>
+        <choice name="Left"/>
+        <choice name="Right"/>
+      </choices>
+      <default>Bottom</default>
+    </entry>
+
+    <entry name="displayMode" type="Enum">
+      <label>Which outputs carry a dock</label>
+      <choices>
+        <choice name="FollowActive"/>
+        <choice name="AllScreens"/>
+        <choice name="SingleScreen"/>
+      </choices>
+      <default>AllScreens</default>
+    </entry>
+
+    <entry name="targetOutput" type="String">
+      <label>Output the dock is pinned to in SingleScreen mode</label>
+      <default></default>
+    </entry>
+
+    <!-- S in the proportion model (plan.md Part 0): the tile edge in pt, i.e. the
+         layout cell. Every other dimension is derived from it — gap S/3, pitch
+         4S/3, shelf thickness 5S/3, corner radius 0.28 x thickness, screen gap
+         S/9. This is deliberately the only dimension in the schema. -->
+    <entry name="tileSize" type="Int">
+      <label>Tile size in points</label>
+      <default>48</default>
+      <min>24</min>
+      <max>128</max>
+    </entry>
+
+    <entry name="pinnedEntries" type="StringList">
+      <label>Desktop entry ids pinned to the dock, in order</label>
+      <default></default>
+    </entry>
+  </group>
+</kcfg>

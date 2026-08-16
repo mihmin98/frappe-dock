@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=Frappe Test Valid
+Name[de]=Frappe Test Gültig
+GenericName=Test Fixture
+Comment=A fixture used by the launcher backend tests
+Icon=frappe-test-icon
+Exec=/bin/true %u
+Terminal=false
+Categories=Utility;
+Actions=NewWindow;NewPrivateWindow;Preferences;
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=/bin/true --new-window
+
+[Desktop Action NewPrivateWindow]
+Name=New Private Window
+Exec=/bin/true --private
+
+[Desktop Action Preferences]
+Name=Preferences
+Exec=/bin/true --preferences
