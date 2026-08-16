@@ -1,10 +1,15 @@
 #include "platform/launcherbackend.h"
 
 #include <KIO/ApplicationLauncherJob>
+#include <KIO/OpenFileManagerWindowJob>
 #include <KService>
 #include <KServiceAction>
 
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QLoggingCategory>
+#include <QStandardPaths>
 
 using namespace frappe;
 
@@ -20,6 +25,15 @@ KService::Ptr serviceFor(const QString &id)
         return service;
     }
     return KService::serviceByDesktopName(id);
+}
+
+/// Where the session looks for entries to start at login. Honours
+/// QStandardPaths test mode, so tests never touch the real one.
+QString autostartPath(const KService::Ptr &service)
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+        + QStringLiteral("/autostart");
+    return dir + QLatin1Char('/') + QFileInfo(service->entryPath()).fileName();
 }
 
 /// ApplicationLauncherJob deletes itself when it finishes, so the job must not
@@ -96,4 +110,67 @@ std::expected<void, Error> LauncherBackend::openWith(const QString &id, const QL
     auto *job = new KIO::ApplicationLauncherJob(service);
     job->setUrls(files);
     return startJob(job, id);
+}
+
+std::expected<void, Error> LauncherBackend::reveal(const QString &id) const
+{
+    const KService::Ptr service = serviceFor(id);
+    if (!service) {
+        return std::unexpected(Error::NotFound);
+    }
+
+    // The desktop entry itself is what there is to show: an application is a
+    // bundle on the reference platform and a .desktop file here, so revealing it
+    // means selecting that file in the file manager.
+    const QString path = service->entryPath();
+    if (path.isEmpty()) {
+        return std::unexpected(Error::InvalidDesktopEntry);
+    }
+
+    // Self-deleting like the launcher jobs, and equally fire-and-forget.
+    KIO::highlightInFileManager({QUrl::fromLocalFile(path)});
+    return {};
+}
+
+bool LauncherBackend::launchesAtLogin(const QString &id) const
+{
+    const KService::Ptr service = serviceFor(id);
+    if (!service || service->entryPath().isEmpty()) {
+        return false;
+    }
+    return QFile::exists(autostartPath(service));
+}
+
+std::expected<void, Error> LauncherBackend::setLaunchAtLogin(const QString &id, bool enabled) const
+{
+    const KService::Ptr service = serviceFor(id);
+    if (!service) {
+        return std::unexpected(Error::NotFound);
+    }
+    const QString source = service->entryPath();
+    if (source.isEmpty()) {
+        return std::unexpected(Error::InvalidDesktopEntry);
+    }
+
+    const QString target = autostartPath(service);
+    if (!enabled) {
+        // Absent already counts as done; removing what is not there is not a
+        // failure the caller can act on.
+        return QFile::exists(target) && !QFile::remove(target) ? std::unexpected(Error::IoFailed)
+                                                               : std::expected<void, Error>{};
+    }
+
+    if (QFile::exists(target)) {
+        return {};
+    }
+    if (!QDir().mkpath(QFileInfo(target).absolutePath())) {
+        return std::unexpected(Error::IoFailed);
+    }
+    // A copy rather than a symlink: the entry stays valid if the application is
+    // upgraded and its file replaced, and the session reads it without following
+    // links out of the config tree.
+    if (!QFile::copy(source, target)) {
+        return std::unexpected(Error::IoFailed);
+    }
+    return {};
 }

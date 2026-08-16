@@ -14,6 +14,7 @@ qt_add_qml_module(frappe-qml
         Dock.qml
         Tile.qml
         Indicator.qml
+        TileMenu.qml
     SOURCES
         ../app/qmlregistration.h
         ../app/qmlregistration.cpp
@@ -26,6 +27,7 @@ target_link_libraries(frappe-qml PUBLIC
     frappe-core
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
 )
 
 set_target_properties(frappe-qml PROPERTIES POSITION_INDEPENDENT_CODE ON)

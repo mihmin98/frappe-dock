@@ -42,6 +42,20 @@
       <max>128</max>
     </entry>
 
+    <!-- The visibility switch for the running dot only. Indicator *style* is an
+         appearance setting and lands with the rest of Phase 7's appearance page. -->
+    <entry name="showRunningIndicators" type="Bool">
+      <label>Show an indicator under applications that are running</label>
+      <default>true</default>
+    </entry>
+
+    <!-- False: minimized windows get their own region of tiles. True: they
+         collapse into the application's own tile. -->
+    <entry name="minimizeIntoIcon" type="Bool">
+      <label>Show minimized windows on the application's tile instead of their own</label>
+      <default>false</default>
+    </entry>
+
     <entry name="pinnedEntries" type="StringList">
       <label>Desktop entry ids pinned to the dock, in order</label>
       <default></default>

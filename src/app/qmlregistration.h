@@ -3,6 +3,8 @@
 #include <QQmlEngine>
 
 #include "core/config/configfacade.h"
+#include "core/input/dispatch.h"
+#include "core/model/contextmenu.h"
 #include "core/model/tile.h"
 #include "core/model/tilemodel.h"
 
@@ -36,6 +38,52 @@ Q_ENUM_NS(Value)
 
 static_assert(static_cast<int>(TileKind::Application) == Application);
 static_assert(static_cast<int>(TileKind::Separator) == Separator);
+}
+
+/// input::Command, mirrored so QML can decide which interactions it handles
+/// itself. Static asserts below keep the mirror honest.
+namespace DockCommandNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(DockCommand)
+
+enum Value {
+    LaunchOrActivate,
+    RevealInFileManager,
+    ActivateAndHidePrevious,
+    ActivateAndHideOthers,
+    NewInstance,
+    ShowContextMenu,
+    ShowJumpList,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(input::Command::LaunchOrActivate) == LaunchOrActivate);
+static_assert(static_cast<int>(input::Command::ShowContextMenu) == ShowContextMenu);
+static_assert(static_cast<int>(input::Command::ShowJumpList) == ShowJumpList);
+}
+
+/// MenuItemKind, mirrored so the menu delegate can switch on it.
+namespace MenuItemKindNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(MenuItemKind)
+
+enum Value {
+    Separator,
+    Window,
+    Action,
+    Pin,
+    Unpin,
+    LaunchAtLogin,
+    ShowInFileManager,
+    Quit,
+    ForceQuit,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(MenuItemKind::Separator) == Separator);
+static_assert(static_cast<int>(MenuItemKind::ForceQuit) == ForceQuit);
 }
 
 /// TileModel, so QML can name the type of an injected model.

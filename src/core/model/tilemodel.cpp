@@ -2,6 +2,9 @@
 
 #include "core/config/configfacade.h"
 #include "core/interfaces/ilauncherbackend.h"
+#include "core/interfaces/itaskbackend.h"
+
+#include <QLoggingCategory>
 
 #include <algorithm>
 
@@ -9,10 +12,16 @@ using namespace frappe;
 
 namespace
 {
+Q_LOGGING_CATEGORY(FRAPPE_TASKS, "frappe.tasks")
+
 /// Shown when a pinned entry no longer resolves to an installed application. A
 /// placeholder tile is deliberately preferred to a gap: the user pinned it, and
 /// silently dropping it hides the fact that the application went away.
 constexpr auto placeholderIcon = "application-x-executable";
+
+/// Stable id for the rule between the application region and the minimized one.
+/// The diff keys on ids, so it needs one even though nothing can be done to it.
+constexpr auto minimizedSeparatorId = "separator:minimized";
 
 int indexOfId(const std::vector<Tile> &tiles, const QString &id, int from)
 {
@@ -23,14 +32,55 @@ int indexOfId(const std::vector<Tile> &tiles, const QString &id, int from)
     }
     return -1;
 }
+
+/// Running window counts per app id, in the order the apps were first seen.
+///
+/// A vector rather than a hash: there are tens of windows at most, and the order
+/// is load-bearing — it decides where unpinned running apps land in the dock, so
+/// a hash's arbitrary iteration order would make the layout jump about.
+std::vector<std::pair<QString, int>> countByApp(const std::vector<WindowInfo> &windows, QStringList *unnamed)
+{
+    std::vector<std::pair<QString, int>> counts;
+    for (const WindowInfo &window : windows) {
+        if (window.appId.isEmpty()) {
+            // Nothing to aggregate on and nothing to draw: a window the
+            // compositor gave no app id for cannot be merged with anything.
+            if (unnamed && !unnamed->contains(window.windowId)) {
+                unnamed->append(window.windowId);
+            }
+            continue;
+        }
+
+        const auto it = std::find_if(counts.begin(), counts.end(), [&window](const auto &entry) {
+            return entry.first == window.appId;
+        });
+        if (it == counts.end()) {
+            counts.emplace_back(window.appId, 1);
+        } else {
+            ++it->second;
+        }
+    }
+    return counts;
 }
 
-TileModel::TileModel(ConfigFacade *config, const ILauncherBackend *launcher, QObject *parent)
+int countFor(const std::vector<std::pair<QString, int>> &counts, const QString &appId)
+{
+    const auto it = std::find_if(counts.begin(), counts.end(), [&appId](const auto &entry) {
+        return entry.first == appId;
+    });
+    return it == counts.end() ? 0 : it->second;
+}
+}
+
+TileModel::TileModel(ConfigFacade *config, const ILauncherBackend *launcher, const ITaskBackend *tasks, QObject *parent)
     : QAbstractListModel(parent)
     , m_config(config)
     , m_launcher(launcher)
+    , m_tasks(tasks)
 {
-    m_tiles = buildTiles();
+    QStringList unmatched;
+    m_tiles = buildTiles(&unmatched);
+    noteUnmatched(unmatched);
 }
 
 int TileModel::rowCount(const QModelIndex &parent) const
@@ -96,11 +146,19 @@ const Tile &TileModel::tileAt(int row) const
     return m_tiles.at(row);
 }
 
-std::vector<Tile> TileModel::buildTiles() const
+QStringList TileModel::unmatchedIds() const
 {
+    return m_unmatchedIds;
+}
+
+std::vector<Tile> TileModel::buildTiles(QStringList *unmatched) const
+{
+    const std::vector<WindowInfo> windows = m_tasks ? m_tasks->windows() : std::vector<WindowInfo>();
+    const std::vector<std::pair<QString, int>> counts = countByApp(windows, unmatched);
+
     std::vector<Tile> tiles;
     const QStringList pinned = m_config ? m_config->pinnedEntries() : QStringList();
-    tiles.reserve(pinned.size());
+    tiles.reserve(pinned.size() + static_cast<qsizetype>(counts.size()));
 
     for (const QString &id : pinned) {
         Tile tile;
@@ -108,6 +166,8 @@ std::vector<Tile> TileModel::buildTiles() const
         tile.region = Region::Pinned;
         tile.id = id;
         tile.isPinned = true;
+        tile.windowCount = countFor(counts, id);
+        tile.isRunning = tile.windowCount > 0;
 
         const auto entry = m_launcher ? m_launcher->lookup(id) : std::unexpected(Error::NotFound);
         if (entry) {
@@ -120,12 +180,104 @@ std::vector<Tile> TileModel::buildTiles() const
         tiles.push_back(std::move(tile));
     }
 
+    // Running applications that are not pinned, appended in first-seen order and
+    // tagged Pinned: they share the band with the pinned tiles and differ only in
+    // that they disappear when their last window closes.
+    for (const auto &[appId, count] : counts) {
+        if (pinned.contains(appId)) {
+            continue;
+        }
+
+        Tile tile;
+        tile.kind = TileKind::Application;
+        tile.region = Region::Pinned;
+        tile.id = appId;
+        tile.isPinned = false;
+        tile.isRunning = true;
+        tile.windowCount = count;
+
+        const auto entry = m_launcher ? m_launcher->lookup(appId) : std::unexpected(Error::NotFound);
+        if (entry) {
+            tile.name = entry->name;
+            tile.iconName = entry->iconName;
+        } else {
+            // App-id matching failed. The window is real and running, so it still
+            // gets a tile — degrading to the raw id is better than pretending the
+            // application is not there.
+            tile.name = appId;
+            tile.iconName = QString::fromLatin1(placeholderIcon);
+            if (unmatched && !unmatched->contains(appId)) {
+                unmatched->append(appId);
+            }
+        }
+        tiles.push_back(std::move(tile));
+    }
+
+    appendMinimizedRegion(tiles, windows);
     return tiles;
+}
+
+void TileModel::appendMinimizedRegion(std::vector<Tile> &tiles, const std::vector<WindowInfo> &windows) const
+{
+    // "Minimize into icon" means there is no region: the window is represented
+    // by its application's own tile, which is already there.
+    if (m_config && m_config->minimizeIntoIcon()) {
+        return;
+    }
+
+    std::vector<Tile> minimized;
+    for (const WindowInfo &window : windows) {
+        if (!window.isMinimized || window.appId.isEmpty()) {
+            continue;
+        }
+
+        Tile tile;
+        tile.kind = TileKind::MinimizedWindow;
+        tile.region = Region::Minimized;
+        // Keyed on the window, not the application: two minimized windows of one
+        // application are two tiles, and the diff has to tell them apart.
+        tile.id = window.windowId;
+        tile.name = window.title.isEmpty() ? window.appId : window.title;
+        tile.isRunning = true;
+        tile.windowCount = 1;
+
+        const auto entry = m_launcher ? m_launcher->lookup(window.appId) : std::unexpected(Error::NotFound);
+        tile.iconName = entry ? entry->iconName : QString::fromLatin1(placeholderIcon);
+        minimized.push_back(std::move(tile));
+    }
+
+    if (minimized.empty() || tiles.empty()) {
+        return;
+    }
+
+    // The rule that makes the dock region-structured rather than one long row:
+    // a separator exists only between two non-empty regions.
+    Tile separator;
+    separator.kind = TileKind::Separator;
+    separator.region = Region::Minimized;
+    separator.id = QString::fromLatin1(minimizedSeparatorId);
+    tiles.push_back(std::move(separator));
+
+    tiles.insert(tiles.end(), std::make_move_iterator(minimized.begin()), std::make_move_iterator(minimized.end()));
+}
+
+void TileModel::noteUnmatched(const QStringList &unmatched)
+{
+    // rebuild() runs on every window change, so log only what is newly unmatched
+    // rather than the same ids on every keystroke that opens a window.
+    for (const QString &id : unmatched) {
+        if (!m_unmatchedIds.contains(id)) {
+            qCInfo(FRAPPE_TASKS) << "no desktop entry for running window" << id;
+        }
+    }
+    m_unmatchedIds = unmatched;
 }
 
 void TileModel::rebuild()
 {
-    const std::vector<Tile> next = buildTiles();
+    QStringList unmatched;
+    const std::vector<Tile> next = buildTiles(&unmatched);
+    noteUnmatched(unmatched);
 
     // Walk both lists in step. Where ids agree, the row survives and only its
     // data may have changed; where they disagree, the old id either reappears

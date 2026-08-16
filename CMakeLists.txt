@@ -16,10 +16,11 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)    # CMake 4 scans for C++20 modules at
                                        # CXX_STANDARD >= 20; conflicts with AUTOMOC
 
 # 6.10 rather than 6.9: LibTaskManager's own find_dependency() requires it.
-find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Qml Quick QuickTest Test)
+find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickTest Test)
 find_package(KF6 6.28 REQUIRED COMPONENTS Service KIO IconThemes Config
                                           WindowSystem GlobalAccel ColorScheme)
 find_package(LayerShellQt REQUIRED)
+find_package(LibTaskManager REQUIRED)
 
 enable_testing()
 

@@ -2,6 +2,7 @@
 
 #include "core/interfaces/ilauncherbackend.h"
 
+#include <QSet>
 #include <QStringList>
 
 #include <map>
@@ -73,6 +74,33 @@ public:
         return {};
     }
 
+    std::expected<void, Error> reveal(const QString &id) const override
+    {
+        if (!m_entries.contains(id)) {
+            return std::unexpected(Error::NotFound);
+        }
+        m_revealed.append(id);
+        return {};
+    }
+
+    bool launchesAtLogin(const QString &id) const override
+    {
+        return m_autostart.contains(id);
+    }
+
+    std::expected<void, Error> setLaunchAtLogin(const QString &id, bool enabled) const override
+    {
+        if (!m_entries.contains(id)) {
+            return std::unexpected(Error::NotFound);
+        }
+        if (enabled) {
+            m_autostart.insert(id);
+        } else {
+            m_autostart.remove(id);
+        }
+        return {};
+    }
+
     /// Ids passed to launch(), in call order.
     QStringList launched() const
     {
@@ -91,11 +119,18 @@ public:
         return m_opened;
     }
 
+    /// Ids passed to reveal(), in call order.
+    QStringList revealed() const
+    {
+        return m_revealed;
+    }
+
     void clearRecords()
     {
         m_launched.clear();
         m_launchedActions.clear();
         m_opened.clear();
+        m_revealed.clear();
     }
 
 private:
@@ -105,6 +140,8 @@ private:
     mutable QStringList m_launched;
     mutable QStringList m_launchedActions;
     mutable QStringList m_opened;
+    mutable QStringList m_revealed;
+    mutable QSet<QString> m_autostart;
 };
 
 }

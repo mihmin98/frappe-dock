@@ -5,6 +5,8 @@ add_library(frappe-core STATIC)
 
 target_sources(frappe-core PRIVATE
     config/configfacade.cpp
+    input/dispatch.cpp
+    model/contextmenu.cpp
     model/tilemodel.cpp
     surfaceplan.cpp
 )

@@ -91,6 +91,34 @@ void ConfigFacade::setTileSize(int value)
     Q_EMIT changed();
 }
 
+bool ConfigFacade::showRunningIndicators() const
+{
+    return FrappeConfig::showRunningIndicators();
+}
+
+void ConfigFacade::setShowRunningIndicators(bool value)
+{
+    if (value == showRunningIndicators()) {
+        return;
+    }
+    FrappeConfig::setShowRunningIndicators(value);
+    Q_EMIT changed();
+}
+
+bool ConfigFacade::minimizeIntoIcon() const
+{
+    return FrappeConfig::minimizeIntoIcon();
+}
+
+void ConfigFacade::setMinimizeIntoIcon(bool value)
+{
+    if (value == minimizeIntoIcon()) {
+        return;
+    }
+    FrappeConfig::setMinimizeIntoIcon(value);
+    Q_EMIT changed();
+}
+
 QStringList ConfigFacade::pinnedEntries() const
 {
     return FrappeConfig::pinnedEntries();

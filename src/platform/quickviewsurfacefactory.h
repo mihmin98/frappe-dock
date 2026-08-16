@@ -26,6 +26,10 @@ class QuickViewSurfaceFactory : public QObject, public ISurfaceFactory
 
 public:
     QuickViewSurfaceFactory(ConfigFacade *config, TileModel *model, const IIconProvider *icons, QObject *parent = nullptr);
+
+    /// The object QML routes interactions through. Set before the first surface
+    /// is created; it is passed as an initial property and not re-read after.
+    void setController(QObject *controller);
     ~QuickViewSurfaceFactory() override;
 
     void createSurface(const OutputInfo &output) override;
@@ -38,8 +42,10 @@ public:
     void updateGeometry();
 
 Q_SIGNALS:
-    /// A tile was activated. Wired to the controller in main().
-    void launchRequested(const QString &tileId);
+    /// A tile was interacted with. Wired to the controller in main(), which
+    /// decides what the interaction means.
+    void tileClicked(const QString &tileId, int button, int modifiers);
+    void tileHeld(const QString &tileId);
 
 private:
     void configureSurface(QQuickView *view, const OutputInfo &output);
@@ -47,6 +53,7 @@ private:
     ConfigFacade *m_config;
     TileModel *m_model;
     const IIconProvider *m_icons;
+    QObject *m_controller = nullptr;
     QHash<QString, QQuickView *> m_views;
 };
 

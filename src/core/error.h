@@ -9,6 +9,7 @@ enum class Error {
     InvalidDesktopEntry,
     LaunchFailed,
     PermissionDenied,
+    IoFailed,
 };
 
 }

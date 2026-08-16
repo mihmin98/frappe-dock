@@ -7,6 +7,7 @@
 #include "platform/outputprovider.h"
 #include "platform/quickviewsurfacefactory.h"
 #include "platform/surfacemanager.h"
+#include "platform/taskbackend.h"
 
 #include <QGuiApplication>
 
@@ -25,12 +26,25 @@ int main(int argc, char **argv)
     const frappe::IconProvider icons;
     frappe::OutputProvider outputs;
 
-    frappe::TileModel model(config, &launcher);
-    frappe::DockController controller(&model, &launcher);
+    frappe::TaskBackend tasks;
+
+    frappe::TileModel model(config, &launcher, &tasks);
+    frappe::DockController controller(&model, &launcher, &tasks);
 
     frappe::QuickViewSurfaceFactory factory(config, &model, &icons);
-    QObject::connect(&factory, &frappe::QuickViewSurfaceFactory::launchRequested,
-                     &controller, &frappe::DockController::activateTile);
+    factory.setController(&controller);
+    QObject::connect(&factory, &frappe::QuickViewSurfaceFactory::tileClicked,
+                     &controller, &frappe::DockController::tileClicked);
+    QObject::connect(&factory, &frappe::QuickViewSurfaceFactory::tileHeld,
+                     &controller, &frappe::DockController::tileHeld);
+
+    // A window opened, closed, or changed state: re-query and diff. The backend
+    // has one change channel and two consumers, so both are called from here
+    // rather than each registering and quietly replacing the other.
+    tasks.setChangeCallback([&model, &controller] {
+        model.rebuild();
+        controller.windowsChanged();
+    });
 
     frappe::SurfaceManager surfaces(config, &outputs, &factory);
 

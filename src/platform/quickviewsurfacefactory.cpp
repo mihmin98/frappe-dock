@@ -54,6 +54,11 @@ QuickViewSurfaceFactory::~QuickViewSurfaceFactory()
     }
 }
 
+void QuickViewSurfaceFactory::setController(QObject *controller)
+{
+    m_controller = controller;
+}
+
 void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
 {
     if (m_views.contains(output.id)) {
@@ -64,7 +69,10 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
     view->setResizeMode(QQuickView::SizeRootObjectToView);
     view->setColor(Qt::transparent);
     view->engine()->addImageProvider(QStringLiteral("frappeicon"), new QmlIconProvider(m_icons));
-    view->setInitialProperties({{QStringLiteral("tileModel"), QVariant::fromValue(m_model)}});
+    view->setInitialProperties({
+        {QStringLiteral("tileModel"), QVariant::fromValue(m_model)},
+        {QStringLiteral("controller"), QVariant::fromValue(m_controller)},
+    });
     view->setSource(QUrl(QString::fromLatin1(dockQmlUrl)));
 
     // Dock.qml's signal is declared in QML, so this is a by-name connection and
@@ -73,8 +81,15 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
     QQuickItem *root = view->rootObject();
     if (!root) {
         qCWarning(FRAPPE_SURFACE) << "Dock.qml failed to load; the surface will be empty";
-    } else if (!connect(root, SIGNAL(launchRequested(QString)), this, SIGNAL(launchRequested(QString)))) {
-        qCWarning(FRAPPE_SURFACE) << "Dock.qml has no launchRequested(string) signal; clicks will do nothing";
+    } else {
+        // SIGNAL/SLOT strings are unavoidable here: the sender is a QML object
+        // whose signals have no C++ declaration to take a pointer to.
+        if (!connect(root, SIGNAL(tileClicked(QString, int, int)), this, SIGNAL(tileClicked(QString, int, int)))) {
+            qCWarning(FRAPPE_SURFACE) << "Dock.qml has no tileClicked signal; clicks will do nothing";
+        }
+        if (!connect(root, SIGNAL(tileHeld(QString)), this, SIGNAL(tileHeld(QString)))) {
+            qCWarning(FRAPPE_SURFACE) << "Dock.qml has no tileHeld signal; press and hold will do nothing";
+        }
     }
 
     m_views.insert(output.id, view);

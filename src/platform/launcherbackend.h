@@ -16,6 +16,9 @@ public:
     std::expected<void, Error> launch(const QString &id) const override;
     std::expected<void, Error> launchAction(const QString &id, const QString &actionId) const override;
     std::expected<void, Error> openWith(const QString &id, const QList<QUrl> &files) const override;
+    std::expected<void, Error> reveal(const QString &id) const override;
+    bool launchesAtLogin(const QString &id) const override;
+    std::expected<void, Error> setLaunchAtLogin(const QString &id, bool enabled) const override;
 };
 
 }

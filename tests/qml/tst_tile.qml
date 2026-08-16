@@ -14,7 +14,13 @@ TestCase {
     width: 800
     height: 400
 
-    property int originalTileSize: FrappeConfig.tileSize
+    // Snapshotted in initTestCase, not bound: a binding would track the very
+    // changes these tests make and cleanup would restore nothing.
+    property int originalTileSize: 0
+
+    function initTestCase() {
+        testCase.originalTileSize = FrappeConfig.tileSize;
+    }
 
     Component {
         id: dockComponent
@@ -27,22 +33,22 @@ TestCase {
 
     function test_tileCountMatchesModelRowCount() {
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0 },
-                                                        { tileId: "b", name: "B", iconName: "", kind: 0 },
-                                                        { tileId: "c", name: "C", iconName: "", kind: 0 } ] });
+                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
+                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
+                                                        { tileId: "c", name: "C", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
         verify(dock);
         let repeater = findChild(dock, "repeater");
         verify(repeater);
         compare(repeater.count, 3);
     }
 
-    function test_clickEmitsLaunchSignalWithCorrectId() {
+    function test_clickEmitsTileClickedWithCorrectId() {
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "alpha", name: "Alpha", iconName: "", kind: 0 },
-                                                        { tileId: "beta", name: "Beta", iconName: "", kind: 0 } ] });
+                                         { tileModel: [ { tileId: "alpha", name: "Alpha", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
+                                                        { tileId: "beta", name: "Beta", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
         verify(dock);
         let spy = createTemporaryObject(signalSpyComponent, testCase,
-                                        { target: dock, signalName: "launchRequested" });
+                                        { target: dock, signalName: "tileClicked" });
         verify(spy.valid);
 
         let repeater = findChild(dock, "repeater");
@@ -53,6 +59,8 @@ TestCase {
 
         compare(spy.count, 1);
         compare(spy.signalArguments[0][0], "beta");
+        compare(spy.signalArguments[0][1], Qt.LeftButton);
+        compare(spy.signalArguments[0][2], Qt.NoModifier);
     }
 
     function test_emptyModelRendersEmptyShelfWithoutError() {
@@ -89,8 +97,8 @@ TestCase {
         FrappeConfig.tileSize = data.S;
 
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0 },
-                                                        { tileId: "b", name: "B", iconName: "", kind: 0 } ] });
+                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
+                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
         verify(dock);
 
         let S = data.S;
@@ -127,15 +135,15 @@ TestCase {
 
     /*
      * The reference dock, cross-checked against
-     * .reference-screenshots/26-Tahoe-Desktop.png: at S ~= 46.5 the measured
+     * the reference screenshot: at S ~= 46.5 the measured
      * shelf is 77.5 pt thick with a 62 pt cell pitch.
      */
     function test_referenceGeometry() {
         FrappeConfig.tileSize = 47;
 
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0 },
-                                                        { tileId: "b", name: "B", iconName: "", kind: 0 } ] });
+                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
+                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
         let shelf = findChild(dock, "shelf");
         let repeater = findChild(dock, "repeater");
 

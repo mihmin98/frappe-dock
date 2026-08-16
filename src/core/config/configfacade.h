@@ -20,6 +20,8 @@ class ConfigFacade : public QObject
     Q_PROPERTY(int displayMode READ displayMode WRITE setDisplayMode NOTIFY changed)
     Q_PROPERTY(QString targetOutput READ targetOutput WRITE setTargetOutput NOTIFY changed)
     Q_PROPERTY(int tileSize READ tileSize WRITE setTileSize NOTIFY changed)
+    Q_PROPERTY(bool showRunningIndicators READ showRunningIndicators WRITE setShowRunningIndicators NOTIFY changed)
+    Q_PROPERTY(bool minimizeIntoIcon READ minimizeIntoIcon WRITE setMinimizeIntoIcon NOTIFY changed)
     Q_PROPERTY(QStringList pinnedEntries READ pinnedEntries WRITE setPinnedEntries NOTIFY changed)
 
 public:
@@ -53,6 +55,12 @@ public:
     int tileSize() const;
     void setTileSize(int value);
 
+    bool showRunningIndicators() const;
+    void setShowRunningIndicators(bool value);
+
+    bool minimizeIntoIcon() const;
+    void setMinimizeIntoIcon(bool value);
+
     QStringList pinnedEntries() const;
     void setPinnedEntries(const QStringList &value);
 
@@ -63,8 +71,8 @@ public:
     Q_INVOKABLE void reload();
 
 Q_SIGNALS:
-    /// Emitted whenever any key changes. The dock has five settings in Phase 1
-    /// and rebinding all of them on any change costs nothing.
+    /// Emitted whenever any key changes. The dock has a handful of settings and
+    /// rebinding all of them on any change costs nothing.
     void changed();
 
 private:

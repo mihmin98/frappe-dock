@@ -21,8 +21,14 @@ Item {
     /// The TileModel, injected by the surface factory (or by a test).
     property var tileModel: null
 
-    /// Emitted when a tile is activated. main() routes this to the launcher.
-    signal launchRequested(string tileId)
+    /// The DockController, injected the same way. Null in tests that only care
+    /// about layout; popups are then simply not offered.
+    property var controller: null
+
+    /// Emitted when a tile is activated. main() routes these to the controller,
+    /// which dispatches them through the binding matrix.
+    signal tileClicked(string tileId, int button, int modifiers)
+    signal tileHeld(string tileId)
 
     // --- The proportion model -------------------------------------------
     readonly property real iconSize: FrappeConfig.tileSize      // S, the layout cell
@@ -42,6 +48,29 @@ Item {
     /// the anchored axis.
     implicitWidth: horizontal ? shelf.width : thickness
     implicitHeight: horizontal ? thickness : shelf.height
+
+    /// Routes one interaction: opens a popup here, or hands it to C++.
+    function handle(id, button, modifiers, held) {
+        let command = dock.controller ? dock.controller.commandFor(button, modifiers, held)
+                                      : DockCommand.LaunchOrActivate;
+
+        if (command === DockCommand.ShowContextMenu || command === DockCommand.ShowJumpList) {
+            menu.openFor(id);
+            return;
+        }
+
+        if (held) {
+            dock.tileHeld(id);
+        } else {
+            dock.tileClicked(id, button, modifiers);
+        }
+    }
+
+    TileMenu {
+        id: menu
+        objectName: "tileMenu"
+        controller: dock.controller
+    }
 
     Rectangle {
         id: shelf
@@ -88,17 +117,29 @@ Item {
                     required property string name
                     required property string iconName
                     required property int kind
+                    // Tile already declares these two under the same names the
+                    // model roles use, so they are marked required rather than
+                    // re-declared, and the Repeater fills them directly.
+                    required isRunning
+                    required windowCount
 
                     iconSize: dock.iconSize
                     gap: dock.gap
                     horizontal: dock.horizontal
+                    dockPosition: FrappeConfig.position
 
                     entryId: tileId
                     entryName: name
                     entryIcon: iconName
                     entryKind: kind
 
-                    onActivated: (id) => dock.launchRequested(id)
+                    // Popups have to open on the surface that was clicked, so
+                    // the view asks the matrix what the input means and keeps
+                    // those two commands for itself. Everything else goes to
+                    // C++ as before; the matrix is still the only place the
+                    // mapping is written down.
+                    onActivated: (id, button, modifiers) => dock.handle(id, button, modifiers, false)
+                    onHeld: (id) => dock.handle(id, Qt.LeftButton, Qt.NoModifier, true)
                 }
             }
         }

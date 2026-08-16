@@ -34,6 +34,13 @@ public:
     virtual std::expected<void, Error> launch(const QString &id) const = 0;
     virtual std::expected<void, Error> launchAction(const QString &id, const QString &actionId) const = 0;
     virtual std::expected<void, Error> openWith(const QString &id, const QList<QUrl> &files) const = 0;
+
+    /// Opens the file manager with the application's desktop entry selected.
+    virtual std::expected<void, Error> reveal(const QString &id) const = 0;
+
+    /// Whether the application is set to start with the session.
+    virtual bool launchesAtLogin(const QString &id) const = 0;
+    virtual std::expected<void, Error> setLaunchAtLogin(const QString &id, bool enabled) const = 0;
 };
 
 }

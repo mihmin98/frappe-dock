@@ -8,6 +8,7 @@ target_sources(frappe-platform PRIVATE
     outputprovider.cpp
     quickviewsurfacefactory.cpp
     surfacemanager.cpp
+    taskbackend.cpp
 )
 
 target_link_libraries(frappe-platform PUBLIC
@@ -19,6 +20,7 @@ target_link_libraries(frappe-platform PUBLIC
     KF6::IconThemes
     KF6::WindowSystem
     LayerShellQt::Interface
+    PW::LibTaskManager
 )
 
 set_target_properties(frappe-platform PROPERTIES POSITION_INDEPENDENT_CODE ON)

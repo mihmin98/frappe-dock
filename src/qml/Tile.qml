@@ -16,6 +16,8 @@ Item {
     required property real iconSize
     required property real gap
     required property bool horizontal
+    /// One of ConfigFacade.Bottom / Left / Right, for the indicator's edge.
+    required property int dockPosition
 
     required property string entryId
     required property string entryName
@@ -23,10 +25,14 @@ Item {
     required property int entryKind
 
     property bool isRunning: false
+    property int windowCount: 0
 
     /// Emitted on click, carrying the tile's id — never its index, which shifts
-    /// under reordering.
-    signal activated(string tileId)
+    /// under reordering — and the button and modifiers the binding matrix needs.
+    signal activated(string tileId, int button, int modifiers)
+
+    /// Press and hold, which is its own row of the matrix.
+    signal held(string tileId)
 
     readonly property bool isSeparator: entryKind === TileKind.Separator
 
@@ -74,18 +80,24 @@ Item {
 
     Indicator {
         objectName: "indicator"
-        visible: tile.isRunning && !tile.isSeparator
+        // FrappeConfig gates it globally; isRunning gates it per tile. A
+        // separator has no application behind it and so never carries one.
+        visible: tile.isRunning && !tile.isSeparator && FrappeConfig.showRunningIndicators
 
         iconSize: tile.iconSize
-        // Centred 0.21 S below the artwork's bottom edge, which places it inside
-        // the shelf's bottom padding band.
-        anchors.horizontalCenter: art.horizontalCenter
-        anchors.top: art.bottom
-        anchors.topMargin: 0.21 * tile.iconSize - height / 2
+        art: art
+        dockPosition: tile.dockPosition
+        windowCount: tile.windowCount
     }
 
-    TapHandler {
+    // MouseArea rather than TapHandler: the matrix is keyed on modifiers, and
+    // TapHandler's tapped() reports the button but not the modifier state.
+    MouseArea {
+        anchors.fill: parent
         enabled: !tile.isSeparator
-        onTapped: tile.activated(tile.entryId)
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+
+        onClicked: (mouse) => tile.activated(tile.entryId, mouse.button, mouse.modifiers)
+        onPressAndHold: (mouse) => tile.held(tile.entryId)
     }
 }
