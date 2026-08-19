@@ -5,6 +5,9 @@ add_library(frappe-core STATIC)
 
 target_sources(frappe-core PRIVATE
     config/configfacade.cpp
+    geometry/layout.cpp
+    geometry/hittest.cpp
+    geometry/magnification.cpp
     input/dispatch.cpp
     model/contextmenu.cpp
     model/tilemodel.cpp

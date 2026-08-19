@@ -20,6 +20,11 @@ class ConfigFacade : public QObject
     Q_PROPERTY(int displayMode READ displayMode WRITE setDisplayMode NOTIFY changed)
     Q_PROPERTY(QString targetOutput READ targetOutput WRITE setTargetOutput NOTIFY changed)
     Q_PROPERTY(int tileSize READ tileSize WRITE setTileSize NOTIFY changed)
+    Q_PROPERTY(bool magnificationEnabled READ magnificationEnabled WRITE setMagnificationEnabled NOTIFY changed)
+    Q_PROPERTY(qreal magnificationFactor READ magnificationFactor WRITE setMagnificationFactor NOTIFY changed)
+    Q_PROPERTY(qreal falloffRadius READ falloffRadius WRITE setFalloffRadius NOTIFY changed)
+    Q_PROPERTY(qreal curveExponent READ curveExponent WRITE setCurveExponent NOTIFY changed)
+    Q_PROPERTY(int animationSpeed READ animationSpeed WRITE setAnimationSpeed NOTIFY changed)
     Q_PROPERTY(bool showRunningIndicators READ showRunningIndicators WRITE setShowRunningIndicators NOTIFY changed)
     Q_PROPERTY(bool minimizeIntoIcon READ minimizeIntoIcon WRITE setMinimizeIntoIcon NOTIFY changed)
     Q_PROPERTY(QStringList pinnedEntries READ pinnedEntries WRITE setPinnedEntries NOTIFY changed)
@@ -54,6 +59,25 @@ public:
 
     int tileSize() const;
     void setTileSize(int value);
+
+    bool magnificationEnabled() const;
+    void setMagnificationEnabled(bool value);
+
+    /// The three below are stored as percentages — KConfigXT has no
+    /// range-checked real — and exposed as the ratios the engine actually
+    /// takes, so the x100 stays in this file and nowhere else.
+    qreal magnificationFactor() const;
+    void setMagnificationFactor(qreal value);
+
+    qreal falloffRadius() const;
+    void setFalloffRadius(qreal value);
+
+    qreal curveExponent() const;
+    void setCurveExponent(qreal value);
+
+    /// Percentage of normal speed; 0 means no animation at all.
+    int animationSpeed() const;
+    void setAnimationSpeed(int value);
 
     bool showRunningIndicators() const;
     void setShowRunningIndicators(bool value);

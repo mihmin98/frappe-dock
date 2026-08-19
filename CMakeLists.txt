@@ -22,6 +22,19 @@ find_package(KF6 6.28 REQUIRED COMPONENTS Service KIO IconThemes Config
 find_package(LayerShellQt REQUIRED)
 find_package(LibTaskManager REQUIRED)
 
+# The tuning harness (plan.md §3.5): a debug window whose sliders mutate the
+# running dock. On for development builds, off for Release — a shipped dock has
+# no business carrying it. Set explicitly to override.
+if(NOT DEFINED FRAPPE_TUNING_HARNESS)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(FRAPPE_TUNING_HARNESS OFF)
+    else()
+        set(FRAPPE_TUNING_HARNESS ON)
+    endif()
+endif()
+option(FRAPPE_TUNING_HARNESS "Build the geometry tuning harness" ${FRAPPE_TUNING_HARNESS})
+message(STATUS "Tuning harness: ${FRAPPE_TUNING_HARNESS}")
+
 enable_testing()
 
 add_subdirectory(src)

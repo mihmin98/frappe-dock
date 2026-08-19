@@ -83,6 +83,17 @@ TileModel::TileModel(ConfigFacade *config, const ILauncherBackend *launcher, con
     noteUnmatched(unmatched);
 }
 
+QList<int> TileModel::separatorRows() const
+{
+    QList<int> rows;
+    for (std::size_t i = 0; i < m_tiles.size(); ++i) {
+        if (m_tiles[i].kind == TileKind::Separator) {
+            rows.append(int(i));
+        }
+    }
+    return rows;
+}
+
 int TileModel::rowCount(const QModelIndex &parent) const
 {
     // A list model has no children, so anything under a valid parent is empty.

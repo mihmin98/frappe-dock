@@ -91,6 +91,95 @@ void ConfigFacade::setTileSize(int value)
     Q_EMIT changed();
 }
 
+namespace
+{
+/// Percent-stored key to the ratio the engine takes, and back. Rounding on the
+/// way in is what keeps a slider from writing a value the schema then clamps
+/// differently on reload.
+constexpr qreal fromPercent(int stored)
+{
+    return stored / 100.0;
+}
+
+int toPercent(qreal ratio)
+{
+    return qRound(ratio * 100.0);
+}
+}
+
+bool ConfigFacade::magnificationEnabled() const
+{
+    return FrappeConfig::magnificationEnabled();
+}
+
+void ConfigFacade::setMagnificationEnabled(bool value)
+{
+    if (value == magnificationEnabled()) {
+        return;
+    }
+    FrappeConfig::setMagnificationEnabled(value);
+    Q_EMIT changed();
+}
+
+qreal ConfigFacade::magnificationFactor() const
+{
+    return fromPercent(FrappeConfig::magnificationFactor());
+}
+
+void ConfigFacade::setMagnificationFactor(qreal value)
+{
+    const int stored = toPercent(value);
+    if (stored == FrappeConfig::magnificationFactor()) {
+        return;
+    }
+    FrappeConfig::setMagnificationFactor(stored);
+    Q_EMIT changed();
+}
+
+qreal ConfigFacade::falloffRadius() const
+{
+    return fromPercent(FrappeConfig::falloffRadius());
+}
+
+void ConfigFacade::setFalloffRadius(qreal value)
+{
+    const int stored = toPercent(value);
+    if (stored == FrappeConfig::falloffRadius()) {
+        return;
+    }
+    FrappeConfig::setFalloffRadius(stored);
+    Q_EMIT changed();
+}
+
+qreal ConfigFacade::curveExponent() const
+{
+    return fromPercent(FrappeConfig::curveExponent());
+}
+
+void ConfigFacade::setCurveExponent(qreal value)
+{
+    const int stored = toPercent(value);
+    if (stored == FrappeConfig::curveExponent()) {
+        return;
+    }
+    FrappeConfig::setCurveExponent(stored);
+    Q_EMIT changed();
+}
+
+int ConfigFacade::animationSpeed() const
+{
+    return FrappeConfig::animationSpeed();
+}
+
+void ConfigFacade::setAnimationSpeed(int value)
+{
+    if (value == animationSpeed()) {
+        return;
+    }
+    FrappeConfig::setAnimationSpeed(value);
+    Q_EMIT changed();
+}
+
 bool ConfigFacade::showRunningIndicators() const
 {
     return FrappeConfig::showRunningIndicators();

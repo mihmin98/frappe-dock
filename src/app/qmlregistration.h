@@ -2,6 +2,8 @@
 
 #include <QQmlEngine>
 
+#include "app/dockgeometry.h"
+#include "app/tuning.h"
 #include "core/config/configfacade.h"
 #include "core/input/dispatch.h"
 #include "core/model/contextmenu.h"
@@ -86,6 +88,14 @@ static_assert(static_cast<int>(MenuItemKind::Separator) == Separator);
 static_assert(static_cast<int>(MenuItemKind::ForceQuit) == ForceQuit);
 }
 
+/// The geometry engine, instantiable from QML so the view has exactly one
+/// source of tile positions and needs nothing injected to get it.
+struct DockGeometryForeign {
+    Q_GADGET
+    QML_FOREIGN(frappe::DockGeometry)
+    QML_NAMED_ELEMENT(DockGeometry)
+};
+
 /// TileModel, so QML can name the type of an injected model.
 struct TileModelForeign {
     Q_GADGET
@@ -116,6 +126,25 @@ public:
         // The singleton outlives every engine, so the engine must not take it.
         QQmlEngine::setObjectOwnership(config, QQmlEngine::CppOwnership);
         return config;
+    }
+};
+
+/// The non-persisted geometry knob the tuning harness moves. Registered in
+/// every build, not just harness builds, so Dock.qml is the same file either
+/// way — a view that differs between build types is a view that only works in
+/// one of them.
+struct TuningSingleton {
+    Q_GADGET
+    QML_FOREIGN(frappe::Tuning)
+    QML_NAMED_ELEMENT(GeometryTuning)
+    QML_SINGLETON
+
+public:
+    static Tuning *create(QQmlEngine *, QJSEngine *)
+    {
+        Tuning *tuning = Tuning::instance();
+        QQmlEngine::setObjectOwnership(tuning, QQmlEngine::CppOwnership);
+        return tuning;
     }
 };
 

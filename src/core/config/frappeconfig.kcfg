@@ -42,6 +42,56 @@
       <max>128</max>
     </entry>
 
+    <!-- Magnification. These are behaviour, not dimensions: none of them can be
+         read from the reference screenshot, which has magnification off. They
+         come from the falloff prototype and the tuning harness, and the values
+         here are the frozen result (see docs/decisions/). Every one is a ratio
+         rather than a length, so the proportion model still has exactly one
+         dimension in it — tileSize. -->
+    <entry name="magnificationEnabled" type="Bool">
+      <label>Enlarge tiles near the pointer</label>
+      <default>true</default>
+    </entry>
+
+    <!-- Peak tile size as a multiple of S, stored x100 because KConfigXT has no
+         range-checked real. 200 = a tile at twice its resting size. -->
+    <entry name="magnificationFactor" type="Int">
+      <label>Peak tile size, as a percentage of the resting tile size</label>
+      <default>200</default>
+      <min>100</min>
+      <max>300</max>
+    </entry>
+
+    <!-- How far the effect reaches, in cell pitches, x100. Unitless already, so
+         it scales with the dock by construction. -->
+    <entry name="falloffRadius" type="Int">
+      <label>Reach of the magnification, in cell pitches x100</label>
+      <default>300</default>
+      <min>100</min>
+      <max>800</max>
+    </entry>
+
+    <!-- Shape of the falloff between peak and rest, x100. Higher is flatter at
+         the peak and steeper at the edges. -->
+    <entry name="curveExponent" type="Int">
+      <label>Shape of the magnification falloff, x100</label>
+      <default>160</default>
+      <min>50</min>
+      <max>400</max>
+    </entry>
+
+    <!-- Animation speed as a percentage of normal: higher is faster, and 0
+         disables animation outright. One multiplier over every duration rather
+         than a key per animation — the durations themselves are a property of
+         the design and are not individually negotiable. 0 is also what an
+         accessibility setting for reduced motion will drive (Phase 8). -->
+    <entry name="animationSpeed" type="Int">
+      <label>Animation speed, as a percentage of normal</label>
+      <default>100</default>
+      <min>0</min>
+      <max>400</max>
+    </entry>
+
     <!-- The visibility switch for the running dot only. Indicator *style* is an
          appearance setting and lands with the rest of Phase 7's appearance page. -->
     <entry name="showRunningIndicators" type="Bool">

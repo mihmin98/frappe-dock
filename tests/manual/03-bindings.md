@@ -82,7 +82,25 @@ Dolphin running with one, Kate installed but not running.
 
 ## Results
 
-Not yet run. Record per row: reached / swallowed, and for anything swallowed the alternative
+**Not run — task 2.4.4 was closed as skipped on 2026-08-17 by user decision.** No row below has
+been verified. One attempt was made and produced no usable data: Meta-clicking a tile dragged
+the whole nested host window across the real desktop, meaning the *outer* Plasma session ate
+the event before the nested compositor saw it. Meta+click is untested, not swallowed.
+
+Anyone picking this up: neutralise the outer session's grab first, or every Meta row will
+measure the harness instead of the dock. The outer `kwinrc` carries no `MouseBindings` group,
+so it runs the KWin defaults (`CommandAllKey=Meta`, Move / Toggle raise and lower / Resize) —
+
+```sh
+kwriteconfig6 --file kwinrc --group MouseBindings --key CommandAll1 Nothing   # and All2, All3
+qdbus org.kde.KWin /KWin reconfigure
+kwriteconfig6 --file kwinrc --group MouseBindings --key CommandAll1 --delete  # to restore
+```
+
+`CommandAllKey` remains `Meta` even then, so pair any negative result with the dock's log to
+tell "inner grab" from "outer still filtering".
+
+When it is run, record per row: reached / swallowed, and for anything swallowed the alternative
 chosen and why. Findings belong in `docs/decisions/` as well as here, because the settings page
 in §7.5 renders the matrix and has to render the *real* one.
 

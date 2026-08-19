@@ -1,6 +1,7 @@
 #include "platform/quickviewsurfacefactory.h"
 
 #include "core/config/configfacade.h"
+#include "core/geometry/layout.h"
 #include "core/interfaces/iiconprovider.h"
 #include "core/model/tilemodel.h"
 #include "platform/iconprovider.h"
@@ -147,12 +148,21 @@ void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInf
     // a literal beyond the ratios themselves.
     const qreal tileSize = m_config->tileSize();
     const qreal gap = tileSize / 3.0;
-    const qreal thickness = tileSize + 2.0 * gap;
     // The dock floats: its outer edge sits g/3 = S/9 from the screen edge. This
     // is a layer-shell margin, not QML padding, so the shelf's own geometry stays
     // a pure function of S.
     const int screenGap = qRound(gap / 3.0);
-    const int surfaceThickness = qRound(thickness);
+
+    // Two different thicknesses, and conflating them is what cut magnified
+    // icons off at the top. The shelf is what the dock *is* — normative
+    // geometry, S + 2g, unaffected by the magnification setting. The surface is
+    // what it needs to *draw on*, which at a high peak is several times that,
+    // because a magnified tile grows out of the shelf and away from the screen
+    // edge. Both come from core so the view and the surface cannot disagree.
+    const qreal peak = m_config->magnificationEnabled()
+        ? m_config->magnificationFactor() * tileSize : tileSize;
+    const int shelfThickness = qRound(geometry::shelfThickness(tileSize, gap));
+    const int surfaceThickness = qRound(geometry::surfaceThickness(tileSize, gap, peak));
 
     QScreen *screen = screenForOutput(output.id);
     if (screen) {
@@ -195,11 +205,34 @@ void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInf
     }
 
     // The zone is measured from the surface's own edge, and the compositor adds
-    // the margin on top of it — so this must be the surface thickness alone.
-    // Adding screenGap here reserves it twice and leaves a visible dead strip
-    // above the dock. Measured on KWin 6.7.4: reserved area came back as
-    // exactly zone + margin at every tile size tried.
-    layer->setExclusiveZone(surfaceThickness);
+    // the margin on top of it — so this must be the thickness alone. Adding
+    // screenGap here reserves it twice and leaves a visible dead strip above
+    // the dock. Measured on KWin 6.7.4: reserved area came back as exactly
+    // zone + margin at every tile size tried.
+    //
+    // The *shelf's* thickness, not the surface's: the headroom above the shelf
+    // is drawn into but not occupied, and reserving it would push every window
+    // up by space the dock only borrows while the pointer is over it.
+    layer->setExclusiveZone(shelfThickness);
+
+    // Input stops at the shelf too. Without this the surface would swallow
+    // clicks across the whole screen edge over a band as tall as the largest
+    // possible tile — mostly empty space, and at a high peak most of the band.
+    // Nothing is lost by it: hover is driven from the shelf, so the headroom
+    // was never interactive.
+    const QRect span = screen ? screen->geometry() : QRect(0, 0, 8192, 8192);
+    switch (m_config->position()) {
+    case ConfigFacade::Left:
+        view->setMask(QRegion(0, 0, shelfThickness, span.height()));
+        break;
+    case ConfigFacade::Right:
+        view->setMask(QRegion(surfaceThickness - shelfThickness, 0, shelfThickness, span.height()));
+        break;
+    case ConfigFacade::Bottom:
+    default:
+        view->setMask(QRegion(0, surfaceThickness - shelfThickness, span.width(), shelfThickness));
+        break;
+    }
 
     // Layer-surface state is double-buffered and latches on the next surface
     // commit. With a static scene Qt renders no new frame, so without this the

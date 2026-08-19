@@ -53,6 +53,7 @@ private Q_SLOTS:
         QCOMPARE(config.displayMode(), int(ConfigFacade::AllScreens));
         QCOMPARE(config.targetOutput(), QString());
         QCOMPARE(config.tileSize(), 48);
+        QCOMPARE(config.animationSpeed(), 100);
         QCOMPARE(config.pinnedEntries(), QStringList());
     }
 
@@ -64,6 +65,7 @@ private Q_SLOTS:
             config.setDisplayMode(ConfigFacade::SingleScreen);
             config.setTargetOutput(QStringLiteral("WL-1"));
             config.setTileSize(64);
+            config.setAnimationSpeed(0); // reduced motion: a real setting, not a disabled one
             config.setPinnedEntries({QStringLiteral("a"), QStringLiteral("b")});
             config.save();
         }
@@ -73,7 +75,44 @@ private Q_SLOTS:
         QCOMPARE(reloaded.displayMode(), int(ConfigFacade::SingleScreen));
         QCOMPARE(reloaded.targetOutput(), QStringLiteral("WL-1"));
         QCOMPARE(reloaded.tileSize(), 64);
+        QCOMPARE(reloaded.animationSpeed(), 0);
         QCOMPARE(reloaded.pinnedEntries(), QStringList({QStringLiteral("a"), QStringLiteral("b")}));
+    }
+
+    /// The magnification keys are stored as percentages and read as ratios, so
+    /// the x100 has two chances to go wrong: on the way in and on the way out.
+    void magnificationParametersRoundTripAsRatios()
+    {
+        {
+            ConfigFacade config(configPath());
+            QCOMPARE(config.magnificationEnabled(), true);
+            QCOMPARE(config.magnificationFactor(), 2.0);
+            QCOMPARE(config.falloffRadius(), 3.0);
+            QCOMPARE(config.curveExponent(), 1.6);
+
+            config.setMagnificationFactor(2.35);
+            config.setFalloffRadius(4.5);
+            config.setCurveExponent(0.75);
+            config.setMagnificationEnabled(false);
+            config.save();
+        }
+
+        ConfigFacade reloaded(configPath());
+        QCOMPARE(reloaded.magnificationEnabled(), false);
+        QCOMPARE(reloaded.magnificationFactor(), 2.35);
+        QCOMPARE(reloaded.falloffRadius(), 4.5);
+        QCOMPARE(reloaded.curveExponent(), 0.75);
+    }
+
+    /// A hand-edited file is the way an absurd curve gets in. The schema clamps
+    /// in stored units, and the reader must still hand back a ratio.
+    void magnificationParametersAreClamped()
+    {
+        writeConfig(QStringLiteral("[General]\ncurveExponent=9000\nfalloffRadius=1\n"));
+
+        ConfigFacade config(configPath());
+        QCOMPARE(config.curveExponent(), 4.0);
+        QCOMPARE(config.falloffRadius(), 1.0);
     }
 
     void survivesCorruptFile()

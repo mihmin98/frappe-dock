@@ -108,21 +108,21 @@ TestCase {
         let expectedRadius = 0.28 * expectedThickness;
 
         let shelf = findChild(dock, "shelf");
-        let row = findChild(dock, "row");
         let repeater = findChild(dock, "repeater");
+        let first = repeater.itemAt(0);
+        let last = repeater.itemAt(1);
 
         fuzzyCompare(dock.gap, expectedGap, expectedGap * 0.01);
         fuzzyCompare(shelf.height, expectedThickness, expectedThickness * 0.01);
-        fuzzyCompare(row.spacing, expectedGap, expectedGap * 0.01);
         fuzzyCompare(shelf.radius, expectedRadius, expectedRadius * 0.01);
 
-        // Shelf padding, all four sides, equals the inter-icon gap. Measured off
-        // the actual laid-out row rather than read back off a property, so a
+        // Shelf padding, all four sides, equals the inter-icon gap. Measured
+        // between the shelf and the tiles the engine actually placed, so a
         // padding that is declared but not applied fails here.
-        let paddingLeft = row.x;
-        let paddingRight = shelf.width - (row.x + row.width);
-        let paddingTop = row.y;
-        let paddingBottom = shelf.height - (row.y + row.height);
+        let paddingLeft = first.x;
+        let paddingRight = shelf.width - (last.x + last.width);
+        let paddingTop = first.y;
+        let paddingBottom = shelf.height - (first.y + first.height);
         fuzzyCompare(paddingLeft, expectedGap, expectedGap * 0.01);
         fuzzyCompare(paddingRight, expectedGap, expectedGap * 0.01);
         fuzzyCompare(paddingTop, expectedGap, expectedGap * 0.01);

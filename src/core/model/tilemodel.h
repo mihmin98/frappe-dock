@@ -60,6 +60,11 @@ public:
     /// the second time.
     Q_INVOKABLE void rebuild();
 
+    /// The rows holding a separator. The geometry engine needs to know which
+    /// rows are rules rather than cells, and kind is the model's to report —
+    /// the view would otherwise have to reach into delegates to find out.
+    Q_INVOKABLE QList<int> separatorRows() const;
+
     /// Moves a pinned tile, persisting the new order to config. Emits rowsMoved.
     Q_INVOKABLE bool moveTile(int from, int to);
 
