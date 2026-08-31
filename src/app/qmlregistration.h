@@ -6,7 +6,10 @@
 #include "app/tuning.h"
 #include "core/config/configfacade.h"
 #include "core/input/dispatch.h"
+#include "core/input/springloader.h"
 #include "core/model/contextmenu.h"
+#include "core/model/filedrop.h"
+#include "core/model/regiondrop.h"
 #include "core/model/tile.h"
 #include "core/model/tilemodel.h"
 
@@ -88,12 +91,97 @@ static_assert(static_cast<int>(MenuItemKind::Separator) == Separator);
 static_assert(static_cast<int>(MenuItemKind::ForceQuit) == ForceQuit);
 }
 
+/// DropRejection, mirrored so the tile can word the refusal. The reason is
+/// decided in C++ and the sentence is written in QML, which is where
+/// translation lives.
+namespace DropRejectionNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(DropRejection)
+
+enum Value {
+    None,
+    NoFiles,
+    UnsupportedType,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(DropRejection::None) == None);
+static_assert(static_cast<int>(DropRejection::UnsupportedType) == UnsupportedType);
+}
+
+/// Region, mirrored so the view can name the area a payload belongs in.
+namespace RegionNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(TileRegion)
+
+enum Value {
+    Head,
+    Pinned,
+    Recent,
+    Files,
+    Minimized,
+    Tail,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(Region::Head) == Head);
+static_assert(static_cast<int>(Region::Tail) == Tail);
+}
+
+/// DropItemKind and RegionDropRejection, mirrored for the same reason
+/// DropRejection is: the reason is decided in C++, the sentence written in QML.
+namespace DropItemKindNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(DropItemKind)
+
+enum Value {
+    Unknown,
+    Application,
+    File,
+    Folder,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(DropItemKind::Unknown) == Unknown);
+static_assert(static_cast<int>(DropItemKind::Folder) == Folder);
+}
+
+namespace RegionDropRejectionNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(RegionDropRejection)
+
+enum Value {
+    None,
+    WrongRegion,
+    UnknownItem,
+    MixedPayload,
+    NotInstalled,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(RegionDropRejection::None) == None);
+static_assert(static_cast<int>(RegionDropRejection::NotInstalled) == NotInstalled);
+}
+
 /// The geometry engine, instantiable from QML so the view has exactly one
 /// source of tile positions and needs nothing injected to get it.
 struct DockGeometryForeign {
     Q_GADGET
     QML_FOREIGN(frappe::DockGeometry)
     QML_NAMED_ELEMENT(DockGeometry)
+};
+
+/// The spring-load countdown, instantiable from QML: the view feeds it drag
+/// events and acts on springLoaded(), and the timing rules stay in C++ where
+/// they are testable headless.
+struct SpringLoaderForeign {
+    Q_GADGET
+    QML_FOREIGN(frappe::SpringLoader)
+    QML_NAMED_ELEMENT(SpringLoader)
 };
 
 /// TileModel, so QML can name the type of an injected model.

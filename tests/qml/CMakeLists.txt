@@ -1,4 +1,4 @@
-add_executable(tst_qml tst_qml.cpp)
+add_executable(tst_qml tst_qml.cpp dragsimulator.h)
 
 target_link_libraries(tst_qml PRIVATE
     Qt6::QuickTest

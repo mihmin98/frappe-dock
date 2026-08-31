@@ -67,7 +67,7 @@ TestCase {
         let dock = createTemporaryObject(dockComponent, testCase,
                                          { controller: controller,
                                            tileModel: [ { tileId: "editor", name: "Editor", iconName: "",
-                                                          kind: 0, isRunning: true, windowCount: 2 } ] });
+                                                          kind: 0, isRunning: true, windowCount: 2, isPinned: true } ] });
         verify(dock);
         return dock;
     }
@@ -170,7 +170,7 @@ TestCase {
     function test_missingControllerIsSurvivable() {
         let dock = createTemporaryObject(dockComponent, testCase,
                                          { tileModel: [ { tileId: "editor", name: "Editor", iconName: "",
-                                                          kind: 0, isRunning: false, windowCount: 0 } ] });
+                                                          kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         verify(dock);
         // No controller: clicks fall back to the plain command and nothing throws.
         mouseClick(tile(dock), undefined, undefined, Qt.RightButton);

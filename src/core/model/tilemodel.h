@@ -68,6 +68,24 @@ public:
     /// Moves a pinned tile, persisting the new order to config. Emits rowsMoved.
     Q_INVOKABLE bool moveTile(int from, int to);
 
+    /// Adds or removes \a tileId from the pinned entries and rebuilds. Returns
+    /// false when nothing changed.
+    ///
+    /// The single place pinning is written. It touches configuration and
+    /// nothing else: an application that is unpinned is still installed, and
+    /// removing a tile must never be able to grow into removing a program.
+    Q_INVOKABLE bool setPinned(const QString &tileId, bool pinned);
+
+    /// Unpins the tile at \a row. The drag-out gesture knows a row rather than
+    /// an id, and asking it to translate one to the other means reaching into
+    /// the model from the view.
+    Q_INVOKABLE bool unpinTile(int row);
+
+    /// The Region \a row belongs to, as an int, or Region::Pinned for a row
+    /// that does not exist. QML needs it to decide what a drop aimed there
+    /// means, and a model that answers is better than a view that guesses.
+    Q_INVOKABLE int regionOfRow(int row) const;
+
     /// The tile at \a row, for tests and for callers that want the whole struct.
     const Tile &tileAt(int row) const;
 

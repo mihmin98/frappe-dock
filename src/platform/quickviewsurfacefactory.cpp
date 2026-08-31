@@ -153,16 +153,12 @@ void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInf
     // a pure function of S.
     const int screenGap = qRound(gap / 3.0);
 
-    // Two different thicknesses, and conflating them is what cut magnified
-    // icons off at the top. The shelf is what the dock *is* — normative
-    // geometry, S + 2g, unaffected by the magnification setting. The surface is
-    // what it needs to *draw on*, which at a high peak is several times that,
-    // because a magnified tile grows out of the shelf and away from the screen
-    // edge. Both come from core so the view and the surface cannot disagree.
-    const qreal peak = m_config->magnificationEnabled()
-        ? m_config->magnificationFactor() * tileSize : tileSize;
+    // The shelf is what the dock *is* — normative geometry, S + 2g, unaffected
+    // by the magnification setting. It is the only thickness this file needs:
+    // the surface is the whole output, so what the dock draws outside the shelf
+    // no longer has to be predicted here. The zone and the input region are
+    // both measured from the shelf.
     const int shelfThickness = qRound(geometry::shelfThickness(tileSize, gap));
-    const int surfaceThickness = qRound(geometry::surfaceThickness(tileSize, gap, peak));
 
     QScreen *screen = screenForOutput(output.id);
     if (screen) {
@@ -174,63 +170,68 @@ void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInf
     layer->setLayer(Window::LayerTop);
     layer->setKeyboardInteractivity(Window::KeyboardInteractivityOnDemand);
 
-    // A strip must anchor to three edges: with a size of 0 on the spanning axis
-    // and a single anchor, the compositor has no width to hand out and kills the
-    // connection with a protocol error. setExclusiveEdge() then says which of the
-    // three the reserved zone is measured from.
+    // Anchored to all four edges, so the surface is the whole output and the
+    // dock can draw anywhere on it. A shelf-sized surface clips everything that
+    // leaves the shelf — the tile being dragged out to be removed, its Remove
+    // label, the drop refusal messages — and no headroom figure fixes that,
+    // because the gesture has no fixed extent: the user can drag as far as they
+    // like. setExclusiveEdge() says which edge the reserved zone is measured
+    // from, and both the zone and the input region stay at the shelf, so
+    // occupying the screen is only ever about what may be *drawn*.
+    //
+    // The screen gap moves into the QML with this: the shelf is placed g/3 in
+    // from the edge by Dock.qml rather than by a layer-shell margin, since the
+    // surface no longer ends where the shelf does.
+    layer->setAnchors(Window::Anchors(Window::AnchorLeft) | Window::AnchorRight
+                      | Window::AnchorTop | Window::AnchorBottom);
+    layer->setMargins(QMargins(0, 0, 0, 0));
+    // 0 on both axes: the compositor sizes it to the output it is anchored across.
+    layer->setDesiredSize(QSize(0, 0));
+
     switch (m_config->position()) {
     case ConfigFacade::Left:
-        layer->setAnchors(Window::Anchors(Window::AnchorLeft) | Window::AnchorTop | Window::AnchorBottom);
         layer->setExclusiveEdge(Window::AnchorLeft);
-        layer->setMargins(QMargins(screenGap, 0, 0, 0));
-        // 0 on the spanning axis means "compositor decides that one".
-        layer->setDesiredSize(QSize(surfaceThickness, 0));
-        view->setWidth(surfaceThickness);
         break;
     case ConfigFacade::Right:
-        layer->setAnchors(Window::Anchors(Window::AnchorRight) | Window::AnchorTop | Window::AnchorBottom);
         layer->setExclusiveEdge(Window::AnchorRight);
-        layer->setMargins(QMargins(0, 0, screenGap, 0));
-        layer->setDesiredSize(QSize(surfaceThickness, 0));
-        view->setWidth(surfaceThickness);
         break;
     case ConfigFacade::Bottom:
     default:
-        layer->setAnchors(Window::Anchors(Window::AnchorBottom) | Window::AnchorLeft | Window::AnchorRight);
         layer->setExclusiveEdge(Window::AnchorBottom);
-        layer->setMargins(QMargins(0, 0, 0, screenGap));
-        layer->setDesiredSize(QSize(0, surfaceThickness));
-        view->setHeight(surfaceThickness);
         break;
     }
 
-    // The zone is measured from the surface's own edge, and the compositor adds
-    // the margin on top of it — so this must be the thickness alone. Adding
-    // screenGap here reserves it twice and leaves a visible dead strip above
-    // the dock. Measured on KWin 6.7.4: reserved area came back as exactly
-    // zone + margin at every tile size tried.
+    // The zone is measured from the surface's own edge, which is now the screen
+    // edge — there is no margin left for the compositor to add on top, because
+    // the gap moved into the QML. So the zone has to cover both: what the dock
+    // occupies is the shelf plus the gap it floats above.
     //
-    // The *shelf's* thickness, not the surface's: the headroom above the shelf
-    // is drawn into but not occupied, and reserving it would push every window
-    // up by space the dock only borrows while the pointer is over it.
-    layer->setExclusiveZone(shelfThickness);
+    // The *shelf's* thickness, not the surface's: the surface is the whole
+    // output now, and reserving that would leave no screen at all. Everything
+    // outside the shelf is drawn into but not occupied.
+    layer->setExclusiveZone(shelfThickness + screenGap);
 
     // Input stops at the shelf too. Without this the surface would swallow
     // clicks across the whole screen edge over a band as tall as the largest
     // possible tile — mostly empty space, and at a high peak most of the band.
     // Nothing is lost by it: hover is driven from the shelf, so the headroom
     // was never interactive.
+    // Measured from where the shelf actually is, not from the surface's edge:
+    // those were the same thing while the surface was shelf-sized and are not
+    // now. The shelf sits screenGap in from the edge — Dock.qml's shelfCross.
     const QRect span = screen ? screen->geometry() : QRect(0, 0, 8192, 8192);
     switch (m_config->position()) {
     case ConfigFacade::Left:
-        view->setMask(QRegion(0, 0, shelfThickness, span.height()));
+        view->setMask(QRegion(screenGap, 0, shelfThickness, span.height()));
         break;
     case ConfigFacade::Right:
-        view->setMask(QRegion(surfaceThickness - shelfThickness, 0, shelfThickness, span.height()));
+        view->setMask(QRegion(span.width() - screenGap - shelfThickness, 0,
+                              shelfThickness, span.height()));
         break;
     case ConfigFacade::Bottom:
     default:
-        view->setMask(QRegion(0, surfaceThickness - shelfThickness, span.width(), shelfThickness));
+        view->setMask(QRegion(0, span.height() - screenGap - shelfThickness,
+                              span.width(), shelfThickness));
         break;
     }
 

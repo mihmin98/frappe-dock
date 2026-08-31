@@ -46,11 +46,11 @@ TestCase {
     function makeDock() {
         let dock = createTemporaryObject(dockComponent, testCase,
                                          { tileModel: [ { tileId: "alpha", name: "Alpha", iconName: "",
-                                                          kind: 0, isRunning: false, windowCount: 0 },
+                                                          kind: 0, isRunning: false, windowCount: 0, isPinned: true },
                                                         { tileId: "sep", name: "", iconName: "",
-                                                          kind: 4, isRunning: false, windowCount: 0 },
+                                                          kind: 4, isRunning: false, windowCount: 0, isPinned: true },
                                                         { tileId: "beta", name: "Beta", iconName: "",
-                                                          kind: 0, isRunning: false, windowCount: 0 } ] });
+                                                          kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         verify(dock);
         return dock;
     }

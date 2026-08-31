@@ -208,6 +208,20 @@ void ConfigFacade::setMinimizeIntoIcon(bool value)
     Q_EMIT changed();
 }
 
+int ConfigFacade::springLoadDelay() const
+{
+    return FrappeConfig::springLoadDelay();
+}
+
+void ConfigFacade::setSpringLoadDelay(int value)
+{
+    if (value == springLoadDelay()) {
+        return;
+    }
+    FrappeConfig::setSpringLoadDelay(value);
+    Q_EMIT changed();
+}
+
 QStringList ConfigFacade::pinnedEntries() const
 {
     return FrappeConfig::pinnedEntries();
@@ -219,6 +233,10 @@ void ConfigFacade::setPinnedEntries(const QStringList &value)
         return;
     }
     FrappeConfig::setPinnedEntries(value);
+    // Written through immediately, unlike the settings keys. Pinning, unpinning
+    // and reordering are direct manipulation: there is no dialog to dismiss and
+    // no OK button, so the gesture itself is the only save point there is.
+    FrappeConfig::self()->save();
     Q_EMIT changed();
 }
 

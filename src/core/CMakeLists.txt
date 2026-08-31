@@ -9,7 +9,10 @@ target_sources(frappe-core PRIVATE
     geometry/hittest.cpp
     geometry/magnification.cpp
     input/dispatch.cpp
+    input/springloader.cpp
     model/contextmenu.cpp
+    model/filedrop.cpp
+    model/regiondrop.cpp
     model/tilemodel.cpp
     surfaceplan.cpp
 )

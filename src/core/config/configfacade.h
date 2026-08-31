@@ -27,6 +27,7 @@ class ConfigFacade : public QObject
     Q_PROPERTY(int animationSpeed READ animationSpeed WRITE setAnimationSpeed NOTIFY changed)
     Q_PROPERTY(bool showRunningIndicators READ showRunningIndicators WRITE setShowRunningIndicators NOTIFY changed)
     Q_PROPERTY(bool minimizeIntoIcon READ minimizeIntoIcon WRITE setMinimizeIntoIcon NOTIFY changed)
+    Q_PROPERTY(int springLoadDelay READ springLoadDelay WRITE setSpringLoadDelay NOTIFY changed)
     Q_PROPERTY(QStringList pinnedEntries READ pinnedEntries WRITE setPinnedEntries NOTIFY changed)
 
 public:
@@ -84,6 +85,10 @@ public:
 
     bool minimizeIntoIcon() const;
     void setMinimizeIntoIcon(bool value);
+
+    /// Milliseconds a drag must rest on a tile before it acts; 0 is off.
+    int springLoadDelay() const;
+    void setSpringLoadDelay(int value);
 
     QStringList pinnedEntries() const;
     void setPinnedEntries(const QStringList &value);

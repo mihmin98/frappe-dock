@@ -152,6 +152,14 @@ QHash<int, QByteArray> TileModel::roleNames() const
     };
 }
 
+int TileModel::regionOfRow(int row) const
+{
+    if (row < 0 || row >= static_cast<int>(m_tiles.size())) {
+        return static_cast<int>(Region::Pinned);
+    }
+    return static_cast<int>(m_tiles[row].region);
+}
+
 const Tile &TileModel::tileAt(int row) const
 {
     return m_tiles.at(row);
@@ -373,4 +381,39 @@ bool TileModel::moveTile(int from, int to)
     }
 
     return true;
+}
+
+bool TileModel::setPinned(const QString &tileId, bool pinned)
+{
+    if (!m_config || tileId.isEmpty()) {
+        return false;
+    }
+
+    QStringList entries = m_config->pinnedEntries();
+    if (pinned) {
+        if (entries.contains(tileId)) {
+            return false;
+        }
+        entries.append(tileId);
+    } else if (entries.removeAll(tileId) == 0) {
+        return false;
+    }
+
+    m_config->setPinnedEntries(entries);
+    // The tile does not necessarily go away: an unpinned application that is
+    // still running keeps a tile, it just stops being one of the kept ones.
+    rebuild();
+    return true;
+}
+
+bool TileModel::unpinTile(int row)
+{
+    if (row < 0 || row >= static_cast<int>(m_tiles.size())) {
+        return false;
+    }
+    const Tile &tile = m_tiles[row];
+    if (!tile.isPinned) {
+        return false;
+    }
+    return setPinned(tile.id, false);
 }

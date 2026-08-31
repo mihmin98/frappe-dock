@@ -60,7 +60,7 @@ TestCase {
         let rows = [];
         for (let i = 0; i < count; ++i) {
             rows.push({ tileId: "t" + i, name: "T" + i, iconName: "",
-                        kind: 0, isRunning: false, windowCount: 0 });
+                        kind: 0, isRunning: false, windowCount: 0, isPinned: true });
         }
         return rows;
     }
@@ -303,7 +303,7 @@ TestCase {
     function test_separatorsDoNotMagnify() {
         let rows = model(3);
         rows.splice(1, 0, { tileId: "sep", name: "", iconName: "",
-                            kind: TileKind.Separator, isRunning: false, windowCount: 0 });
+                            kind: TileKind.Separator, isRunning: false, windowCount: 0, isPinned: true });
 
         let dock = createTemporaryObject(dockComponent, testCase, { tileModel: rows });
         let repeater = findChild(dock, "repeater");

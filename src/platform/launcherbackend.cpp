@@ -65,6 +65,9 @@ std::expected<DesktopEntry, Error> LauncherBackend::lookup(const QString &id) co
     entry.id = service->storageId();
     entry.name = service->name();
     entry.iconName = service->icon();
+    // What the entry declares it opens, which is what decides whether a file
+    // dropped on its tile has anywhere to go.
+    entry.mimeTypes = service->mimeTypes();
 
     const QList<KServiceAction> actions = service->actions();
     entry.actions.reserve(actions.size());

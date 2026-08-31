@@ -33,9 +33,9 @@ TestCase {
 
     function test_tileCountMatchesModelRowCount() {
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
-                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
-                                                        { tileId: "c", name: "C", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
+                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true },
+                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true },
+                                                        { tileId: "c", name: "C", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         verify(dock);
         let repeater = findChild(dock, "repeater");
         verify(repeater);
@@ -44,8 +44,8 @@ TestCase {
 
     function test_clickEmitsTileClickedWithCorrectId() {
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "alpha", name: "Alpha", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
-                                                        { tileId: "beta", name: "Beta", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
+                                         { tileModel: [ { tileId: "alpha", name: "Alpha", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true },
+                                                        { tileId: "beta", name: "Beta", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         verify(dock);
         let spy = createTemporaryObject(signalSpyComponent, testCase,
                                         { target: dock, signalName: "tileClicked" });
@@ -97,8 +97,8 @@ TestCase {
         FrappeConfig.tileSize = data.S;
 
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
-                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
+                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true },
+                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         verify(dock);
 
         let S = data.S;
@@ -142,8 +142,8 @@ TestCase {
         FrappeConfig.tileSize = 47;
 
         let dock = createTemporaryObject(dockComponent, testCase,
-                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0 },
-                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0 } ] });
+                                         { tileModel: [ { tileId: "a", name: "A", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true },
+                                                        { tileId: "b", name: "B", iconName: "", kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         let shelf = findChild(dock, "shelf");
         let repeater = findChild(dock, "repeater");
 

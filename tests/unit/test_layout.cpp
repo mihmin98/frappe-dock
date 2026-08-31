@@ -40,18 +40,30 @@ private Q_SLOTS:
         // geometry and does not grow with the magnification setting.
         QCOMPARE(shelfThickness(S, gap), 80.0);
 
-        // At the maximum peak — 3 x S — the tile is far taller than the shelf,
-        // and the surface has to hold it: one gap of padding, then the tile.
-        QCOMPARE(surfaceThickness(S, gap, 3.0 * S), gap + 3.0 * S);
+        // Regression: the surface used to equal the shelf whenever the peak was
+        // no taller than the tile, so with magnification off there was no room
+        // outside the shelf at all — a tile dragged out to be removed vanished
+        // at the shelf edge and the Remove label was never seen. The drag-out
+        // gesture needs its headroom whatever magnification is doing.
+        QCOMPARE(surfaceThickness(S, gap, S), shelfThickness(S, gap) + dragOutHeadroom(S));
+        QCOMPARE(surfaceThickness(S, gap, 0.0), shelfThickness(S, gap) + dragOutHeadroom(S));
 
-        // At the peak the schema allows nothing above, the surface is still at
-        // least the shelf.
-        QCOMPARE(surfaceThickness(S, gap, S), shelfThickness(S, gap));
-        QCOMPARE(surfaceThickness(S, gap, 0.0), shelfThickness(S, gap));
+        // Magnification is accounted for by the same maximum, so a peak that
+        // needs more room than the drag does still gets it.
+        QCOMPARE(surfaceThickness(S, gap, 12.0 * S), gap + 12.0 * S);
 
         // And it never shrinks below the shelf as the peak rises from nothing.
         for (double factor = 0.5; factor <= 3.0; factor += 0.05) {
             QVERIFY(surfaceThickness(S, gap, factor * S) >= shelfThickness(S, gap));
+        }
+    }
+
+    /// The headroom is in the proportion model too, so the affordance is the
+    /// same shape at every tile size rather than cramped at the small end.
+    void dragOutHeadroomScalesWithTheTile()
+    {
+        for (const double S : {24.0, 46.5, 48.0, 128.0}) {
+            QCOMPARE(dragOutHeadroom(S) / S, 3.0);
         }
     }
 
@@ -62,7 +74,7 @@ private Q_SLOTS:
         for (const double S : {24.0, 46.5, 48.0, 128.0}) {
             const double gap = S / 3.0;
             QCOMPARE(shelfThickness(S, gap) / S, 5.0 / 3.0);
-            QCOMPARE(surfaceThickness(S, gap, 2.0 * S) / S, 1.0 / 3.0 + 2.0);
+            QCOMPARE(surfaceThickness(S, gap, 2.0 * S) / S, 5.0 / 3.0 + 3.0);
         }
     }
 

@@ -235,6 +235,12 @@ qreal DockGeometry::effectiveTileSize() const
     return m_base.empty() ? m_layout.maxTileSize : m_base.front().size;
 }
 
+qreal DockGeometry::surfaceThickness() const
+{
+    const qreal peak = m_magnificationEnabled ? m_magnification.magnifiedSize : m_layout.maxTileSize;
+    return geometry::surfaceThickness(m_layout.maxTileSize, m_layout.spacing, peak);
+}
+
 int DockGeometry::rowAt(qreal position) const
 {
     const int tile = geometry::hitTest(m_magnified, position);

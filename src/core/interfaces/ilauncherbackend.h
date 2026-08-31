@@ -2,6 +2,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 
 #include <expected>
@@ -19,6 +20,9 @@ struct DesktopEntry {
     QString iconName;
     /// Additional launch actions, in the order the entry declares them: (id, display name).
     std::vector<std::pair<QString, QString>> actions;
+    /// The MIME types the entry declares it can open. Empty means it declares
+    /// none, which is a real answer: a file dropped on it has nowhere to go.
+    QStringList mimeTypes;
 };
 
 /// Desktop entry lookup and application launching.

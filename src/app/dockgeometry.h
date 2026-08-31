@@ -89,6 +89,13 @@ class DockGeometry : public QObject
     /// against the cell but not placed as one — a separator's rule, say.
     Q_PROPERTY(qreal effectiveTileSize READ effectiveTileSize NOTIFY changed)
 
+    /// How thick the surface has to be to draw everything the dock draws: the
+    /// shelf, the magnification peak above it, and the room the drag-out gesture
+    /// needs. Exposed rather than recomputed in QML so the view and the layer
+    /// surface cannot drift apart — they are the same number from the same
+    /// function, and a shelf-sized view clips the gesture it is meant to show.
+    Q_PROPERTY(qreal surfaceThickness READ surfaceThickness NOTIFY changed)
+
 public:
     explicit DockGeometry(QObject *parent = nullptr);
 
@@ -130,6 +137,7 @@ public:
     qreal shelfStart() const;
     qreal restingLength() const;
     qreal effectiveTileSize() const;
+    qreal surfaceThickness() const;
 
     /// Which **model row** is at \a position, or -1. Read off the same
     /// placements the view drew from, never recomputed: two implementations

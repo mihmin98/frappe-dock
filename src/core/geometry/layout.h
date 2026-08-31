@@ -56,10 +56,23 @@ double shelfThickness(double tileSize, double gap);
 /// the largest tile that can ever be drawn on it, keeping the shelf's own
 /// geometry — which is normative — unchanged.
 ///
+/// Magnification is not the only thing drawn outside the shelf. Dragging a tile
+/// out to remove it carries the artwork a tile's distance clear of the shelf
+/// before the gesture even engages, and the Remove label sits beyond that
+/// again — so the surface holds `dragOutHeadroom` past the shelf whatever the
+/// magnification setting is. Without it the dragged tile and its label are
+/// clipped at the shelf edge and the gesture has no visible affordance at all.
+///
 /// Note what this is *not*: the exclusive zone. The headroom is drawn in but
 /// not occupied, and reserving it would push every window up by space the dock
-/// only borrows when the pointer is over it.
+/// only borrows when the pointer is over it. Nor is it the input region: the
+/// surface accepts pointer events over the shelf alone.
 double surfaceThickness(double tileSize, double gap, double peakTileSize);
+
+/// Room past the shelf for the drag-out gesture, in the proportion model: one
+/// tile for the removal threshold, one for the artwork's offset from the
+/// pointer, and one for the label above it.
+double dragOutHeadroom(double tileSize);
 
 /// Centre position of each separator, in the same coordinates as
 /// `TilePlacement::offset` and in the order given by `separatorsAfter`. Derived

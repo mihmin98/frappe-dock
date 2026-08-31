@@ -1,7 +1,10 @@
 #pragma once
 
+#include <QList>
 #include <QObject>
+#include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include "core/input/dispatch.h"
 #include "core/model/contextmenu.h"
@@ -56,6 +59,39 @@ public Q_SLOTS:
     /// \a itemId its window or action id, both as they came from
     /// contextMenuFor().
     void menuItemTriggered(const QString &tileId, int kind, const QString &itemId);
+
+    /// What would happen if \a files were dropped on \a tileId, as a map QML
+    /// can read: `accepted`, `rejection` (a DropRejection), `detail` and
+    /// `appName`.
+    ///
+    /// Asked while the drag is still in the air, so the tile can show the
+    /// answer *before* the release rather than swallowing the drop and doing
+    /// nothing — which is the papercut §4.4 exists to correct.
+    QVariantMap evaluateDrop(const QString &tileId, const QList<QUrl> &files) const;
+
+    /// Opens \a files with the application behind \a tileId. Returns false, and
+    /// opens nothing, when the drop is not one evaluateDrop() would have
+    /// accepted: the check is repeated here so the decision cannot be bypassed
+    /// by a view that forgot to ask.
+    bool openDroppedFiles(const QString &tileId, const QList<QUrl> &files);
+
+    /// What would happen if \a files were dropped into \a region — a Region as
+    /// an int, which is how the model reports it. The map carries `accepted`,
+    /// `rejection` (a RegionDropRejection), `itemKind`, `expectedRegion` and
+    /// `detail`.
+    ///
+    /// Asked while the drag is in the air, for the same reason evaluateDrop()
+    /// is: the dock says why a target is wrong instead of declining in silence.
+    QVariantMap evaluateRegionDrop(int region, const QList<QUrl> &files) const;
+
+    /// Carries out a drop into \a region: pins the applications in \a files.
+    /// Returns false, having done nothing, when the drop is one
+    /// evaluateRegionDrop() would have refused.
+    ///
+    /// Dropping files and folders is accepted by the rules but has nowhere to
+    /// go until the file region has contents (Phase 5), so it is refused here
+    /// as not yet possible rather than pretended.
+    bool acceptRegionDrop(int region, const QList<QUrl> &files);
 
     /// Call when the window list changes, so the controller can keep track of
     /// which application was active before the current one.

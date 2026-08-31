@@ -106,6 +106,18 @@
       <default>false</default>
     </entry>
 
+    <!-- How long a drag has to rest on a tile before the tile acts on it.
+         0 turns spring-loading off outright: it is the one drag behaviour that
+         happens without a release, so it has to be refusable. The default is
+         deliberately on the slow side of the reference behaviour — an
+         accidental spring-load interrupts what the user was actually doing. -->
+    <entry name="springLoadDelay" type="Int">
+      <label>Delay before a drag resting on a tile activates it, in milliseconds</label>
+      <default>700</default>
+      <min>0</min>
+      <max>3000</max>
+    </entry>
+
     <entry name="pinnedEntries" type="StringList">
       <label>Desktop entry ids pinned to the dock, in order</label>
       <default></default>

@@ -46,9 +46,9 @@ TestCase {
     function makeDock() {
         let dock = createTemporaryObject(dockComponent, testCase,
                                          { tileModel: [ { tileId: "running", name: "Running", iconName: "",
-                                                          kind: 0, isRunning: true, windowCount: 1 },
+                                                          kind: 0, isRunning: true, windowCount: 1, isPinned: true },
                                                         { tileId: "idle", name: "Idle", iconName: "",
-                                                          kind: 0, isRunning: false, windowCount: 0 } ] });
+                                                          kind: 0, isRunning: false, windowCount: 0, isPinned: true } ] });
         verify(dock);
         return dock;
     }
@@ -140,7 +140,7 @@ TestCase {
     function test_singleDotUnlessCountingIsEnabled() {
         let dock = createTemporaryObject(dockComponent, testCase,
                                          { tileModel: [ { tileId: "many", name: "Many", iconName: "",
-                                                          kind: 0, isRunning: true, windowCount: 5 } ] });
+                                                          kind: 0, isRunning: true, windowCount: 5, isPinned: true } ] });
         verify(dock);
         let indicator = findChild(tileAt(dock, 0), "indicator");
 
@@ -155,7 +155,7 @@ TestCase {
     function test_separatorHasNoIndicator() {
         let dock = createTemporaryObject(dockComponent, testCase,
                                          { tileModel: [ { tileId: "sep", name: "", iconName: "",
-                                                          kind: 4, isRunning: true, windowCount: 1 } ] });
+                                                          kind: 4, isRunning: true, windowCount: 1, isPinned: true } ] });
         verify(dock);
         // Nothing is running behind a separator, whatever the model says.
         verify(!findChild(tileAt(dock, 0), "indicator").visible);

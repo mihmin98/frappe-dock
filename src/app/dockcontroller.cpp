@@ -2,9 +2,9 @@
 
 #include "core/interfaces/ilauncherbackend.h"
 #include "core/interfaces/itaskbackend.h"
+#include "core/model/filedrop.h"
+#include "core/model/regiondrop.h"
 #include "core/model/tilemodel.h"
-
-#include "core/config/configfacade.h"
 
 #include <QLoggingCategory>
 #include <QVariantMap>
@@ -149,6 +149,108 @@ QVariantList DockController::contextMenuFor(const QString &tileId) const
     return rows;
 }
 
+QVariantMap DockController::evaluateDrop(const QString &tileId, const QList<QUrl> &files) const
+{
+    DropVerdict verdict;
+    QString appName = tileId;
+
+    const Tile *tile = tileFor(tileId);
+    if (!tile || tile->kind != TileKind::Application) {
+        // A separator or a minimized window is not something a file can be
+        // opened with. Nothing is declared, so nothing is accepted.
+        verdict = frappe::evaluateDrop(QStringList(), files);
+    } else if (const auto entry = m_launcher->lookup(tileId)) {
+        appName = entry->name;
+        verdict = frappe::evaluateDrop(entry->mimeTypes, files);
+    } else {
+        verdict = frappe::evaluateDrop(QStringList(), files);
+    }
+
+    return QVariantMap{
+        {QStringLiteral("accepted"), verdict.accepted()},
+        {QStringLiteral("rejection"), static_cast<int>(verdict.rejection)},
+        {QStringLiteral("detail"), verdict.detail},
+        {QStringLiteral("appName"), appName},
+    };
+}
+
+namespace
+{
+/// The desktop entry id for a dropped `.desktop` URL. The file name *is* the
+/// storage id for anything installed; a lookup decides whether it really is.
+QString entryIdFor(const QUrl &url)
+{
+    return url.fileName();
+}
+}
+
+QVariantMap DockController::evaluateRegionDrop(int region, const QList<QUrl> &files) const
+{
+    RegionDropVerdict verdict = frappe::evaluateRegionDrop(files, static_cast<Region>(region));
+    QString detail;
+
+    // An application the dock cannot find is a different refusal from an
+    // application in the wrong place, and only the launcher can tell them
+    // apart. Checked after the region rules so the message names the first
+    // thing wrong, not the last.
+    if (verdict.accepted() && verdict.kind == DropItemKind::Application) {
+        for (const QUrl &file : files) {
+            const auto entry = m_launcher->lookup(entryIdFor(file));
+            if (!entry) {
+                verdict.rejection = RegionDropRejection::NotInstalled;
+                detail = file.fileName();
+                break;
+            }
+        }
+    }
+
+    return QVariantMap{
+        {QStringLiteral("accepted"), verdict.accepted()},
+        {QStringLiteral("rejection"), static_cast<int>(verdict.rejection)},
+        {QStringLiteral("itemKind"), static_cast<int>(verdict.kind)},
+        {QStringLiteral("expectedRegion"), static_cast<int>(verdict.expectedRegion)},
+        {QStringLiteral("detail"), detail},
+    };
+}
+
+bool DockController::acceptRegionDrop(int region, const QList<QUrl> &files)
+{
+    if (!m_model) {
+        return false;
+    }
+    if (!evaluateRegionDrop(region, files).value(QStringLiteral("accepted")).toBool()) {
+        return false;
+    }
+
+    // Applications are the only payload with anywhere to go: the file region
+    // has no contents until Phase 5, so a file drop cannot be aimed at it and
+    // has already been refused above.
+    if (classifyPayload(files) != DropItemKind::Application) {
+        return false;
+    }
+
+    bool pinnedAny = false;
+    for (const QUrl &file : files) {
+        pinnedAny = m_model->setPinned(entryIdFor(file), true) || pinnedAny;
+    }
+    return pinnedAny;
+}
+
+bool DockController::openDroppedFiles(const QString &tileId, const QList<QUrl> &files)
+{
+    if (!evaluateDrop(tileId, files).value(QStringLiteral("accepted")).toBool()) {
+        return false;
+    }
+
+    const auto result = m_launcher->openWith(tileId, files);
+    if (!result) {
+        qCWarning(FRAPPE_DOCK) << "Could not open" << files.size() << "file(s) with" << tileId
+                               << "error" << static_cast<int>(result.error());
+        return false;
+    }
+    return true;
+}
+
 void DockController::menuItemTriggered(const QString &tileId, int kind, const QString &itemId)
 {
     if (tileId.isEmpty()) {
@@ -175,18 +277,10 @@ void DockController::menuItemTriggered(const QString &tileId, int kind, const QS
 
     case MenuItemKind::Pin:
     case MenuItemKind::Unpin: {
-        ConfigFacade *config = ConfigFacade::instance();
-        QStringList pinned = config->pinnedEntries();
-        if (static_cast<MenuItemKind>(kind) == MenuItemKind::Pin) {
-            if (!pinned.contains(tileId)) {
-                pinned.append(tileId);
-            }
-        } else {
-            pinned.removeAll(tileId);
-        }
-        config->setPinnedEntries(pinned);
+        // The model owns pinning: the drag-out gesture in §4.2 writes the same
+        // list, and two places that edit it would be two places to keep in step.
         if (m_model) {
-            m_model->rebuild();
+            m_model->setPinned(tileId, static_cast<MenuItemKind>(kind) == MenuItemKind::Pin);
         }
         return;
     }

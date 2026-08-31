@@ -111,7 +111,16 @@ double surfaceThickness(double tileSize, double gap, double peakTileSize)
     // room it needs is that gap plus the tile itself, and never less than the
     // shelf, which is what it is measured against when magnification is off.
     const double peak = std::max(peakTileSize, tileSize);
-    return std::max(shelfThickness(tileSize, gap), gap + peak);
+    const double magnified = std::max(shelfThickness(tileSize, gap), gap + peak);
+    return std::max(magnified, shelfThickness(tileSize, gap) + dragOutHeadroom(tileSize));
+}
+
+double dragOutHeadroom(double tileSize)
+{
+    // Dock.qml holds the matching rules: the removal threshold is one tile, the
+    // dragged artwork trails the pointer by another, and the label clears that.
+    // Three is the sum of those, not a margin chosen for comfort.
+    return 3.0 * tileSize;
 }
 
 std::vector<double> separatorCentres(const LayoutParams &p, const std::vector<TilePlacement> &tiles)
