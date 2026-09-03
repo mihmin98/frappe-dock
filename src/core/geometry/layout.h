@@ -47,6 +47,14 @@ double shelfLength(const LayoutParams &p, const std::vector<TilePlacement> &tile
 /// padding at each side, S + 2g in the proportion model.
 double shelfThickness(double tileSize, double gap);
 
+/// The shelf's corner radius: 0.28 x its thickness (plan.md Part 0).
+///
+/// Here rather than in the QML alone because the blur region has to be rounded
+/// to the same corner the shelf is drawn with. Two copies of the ratio is one
+/// copy too many — a shelf whose blur does not follow its own corner is exactly
+/// the doubled-rounding artefact §6.4 is about.
+double shelfCornerRadius(double thickness);
+
 /// The thickness of the *surface* the shelf lives on, which is not the same
 /// number.
 ///

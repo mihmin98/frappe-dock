@@ -5,6 +5,7 @@ add_library(frappe-core STATIC)
 
 target_sources(frappe-core PRIVATE
     config/configfacade.cpp
+    desktopid.cpp
     geometry/layout.cpp
     geometry/hittest.cpp
     geometry/magnification.cpp

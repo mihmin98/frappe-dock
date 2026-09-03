@@ -92,6 +92,24 @@
       <max>400</max>
     </entry>
 
+    <!-- How icon artwork is treated (§6.3). Every mode has to leave at least
+         one identification channel intact: Default and Dark keep colour, Tinted
+         spends it and keeps shape. A mode that spent both would be a mode that
+         cannot be used, which is why the reference platform's Clear equivalent
+         is deliberately absent.
+
+         Tinted takes its colour from the scheme's accent rather than from a key
+         of its own — see docs/decisions/ and DockPalette. -->
+    <entry name="appearanceMode" type="Enum">
+      <label>How icon artwork is treated</label>
+      <choices>
+        <choice name="Default"/>
+        <choice name="Dark"/>
+        <choice name="Tinted"/>
+      </choices>
+      <default>Default</default>
+    </entry>
+
     <!-- The visibility switch for the running dot only. Indicator *style* is an
          appearance setting and lands with the rest of Phase 7's appearance page. -->
     <entry name="showRunningIndicators" type="Bool">

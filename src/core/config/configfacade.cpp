@@ -4,17 +4,58 @@
 
 #include <KSharedConfig>
 
+#include <QCoreApplication>
+
 using namespace frappe;
+
+namespace
+{
+/// How long a write waits for the gesture to finish.
+///
+/// Long enough that a drag's stream of moves collapses into one write — they
+/// arrive milliseconds apart — and short enough that the window in which a hard
+/// crash could lose a reorder is not worth worrying about.
+constexpr int saveDelayMs = 250;
+}
 
 ConfigFacade::ConfigFacade(QObject *parent)
     : QObject(parent)
 {
+    m_save.setSingleShot(true);
+    m_save.setInterval(saveDelayMs);
+    connect(&m_save, &QTimer::timeout, this, [] { FrappeConfig::self()->save(); });
+
+    // The process-wide instance outlives most things but not the application,
+    // and its destructor at static teardown is too late to be relied on.
+    if (QCoreApplication::instance()) {
+        connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this,
+                [this] { flushPendingSave(); });
+    }
 }
 
 ConfigFacade::ConfigFacade(const QString &configPath, QObject *parent)
-    : QObject(parent)
+    : ConfigFacade(parent)
 {
     redirectTo(configPath);
+}
+
+ConfigFacade::~ConfigFacade()
+{
+    flushPendingSave();
+}
+
+void ConfigFacade::saveSoon()
+{
+    m_save.start();
+}
+
+void ConfigFacade::flushPendingSave()
+{
+    if (!m_save.isActive()) {
+        return;
+    }
+    m_save.stop();
+    FrappeConfig::self()->save();
 }
 
 void ConfigFacade::redirectTo(const QString &configPath)
@@ -47,6 +88,7 @@ void ConfigFacade::setPosition(int value)
     }
     FrappeConfig::setPosition(value);
     Q_EMIT changed();
+    Q_EMIT surfaceGeometryChanged();
 }
 
 int ConfigFacade::displayMode() const
@@ -61,6 +103,7 @@ void ConfigFacade::setDisplayMode(int value)
     }
     FrappeConfig::setDisplayMode(value);
     Q_EMIT changed();
+    Q_EMIT surfaceSetChanged();
 }
 
 QString ConfigFacade::targetOutput() const
@@ -75,6 +118,7 @@ void ConfigFacade::setTargetOutput(const QString &value)
     }
     FrappeConfig::setTargetOutput(value);
     Q_EMIT changed();
+    Q_EMIT surfaceSetChanged();
 }
 
 int ConfigFacade::tileSize() const
@@ -89,6 +133,7 @@ void ConfigFacade::setTileSize(int value)
     }
     FrappeConfig::setTileSize(value);
     Q_EMIT changed();
+    Q_EMIT surfaceGeometryChanged();
 }
 
 namespace
@@ -180,6 +225,20 @@ void ConfigFacade::setAnimationSpeed(int value)
     Q_EMIT changed();
 }
 
+int ConfigFacade::appearanceMode() const
+{
+    return FrappeConfig::appearanceMode();
+}
+
+void ConfigFacade::setAppearanceMode(int value)
+{
+    if (value == appearanceMode()) {
+        return;
+    }
+    FrappeConfig::setAppearanceMode(value);
+    Q_EMIT changed();
+}
+
 bool ConfigFacade::showRunningIndicators() const
 {
     return FrappeConfig::showRunningIndicators();
@@ -206,6 +265,7 @@ void ConfigFacade::setMinimizeIntoIcon(bool value)
     }
     FrappeConfig::setMinimizeIntoIcon(value);
     Q_EMIT changed();
+    Q_EMIT contentsChanged();
 }
 
 int ConfigFacade::springLoadDelay() const
@@ -233,11 +293,13 @@ void ConfigFacade::setPinnedEntries(const QStringList &value)
         return;
     }
     FrappeConfig::setPinnedEntries(value);
-    // Written through immediately, unlike the settings keys. Pinning, unpinning
-    // and reordering are direct manipulation: there is no dialog to dismiss and
-    // no OK button, so the gesture itself is the only save point there is.
-    FrappeConfig::self()->save();
+    // Written through, unlike the settings keys: pinning, unpinning and
+    // reordering are direct manipulation, and there is no dialog to dismiss.
+    // Deferred past the rest of the gesture, though — a drag calls this several
+    // times, and saving on each step rewrote the whole file per pointer event.
+    saveSoon();
     Q_EMIT changed();
+    Q_EMIT contentsChanged();
 }
 
 QStringList ConfigFacade::fileEntries() const
@@ -251,20 +313,25 @@ void ConfigFacade::setFileEntries(const QStringList &value)
         return;
     }
     FrappeConfig::setFileEntries(value);
-    // Written through immediately, for the same reason pinnedEntries is:
-    // dropping a folder on the dock is direct manipulation, and the gesture is
-    // the only save point there is.
-    FrappeConfig::self()->save();
+    // Written through, for the same reason pinnedEntries is, and deferred for
+    // the same reason too: the file region reorders by drag as well.
+    saveSoon();
     Q_EMIT changed();
+    Q_EMIT contentsChanged();
 }
 
 void ConfigFacade::save()
 {
+    // An explicit save is a promise that it is on disk when this returns, so a
+    // deferred one must not be left pending behind it.
+    m_save.stop();
     FrappeConfig::self()->save();
 }
 
 void ConfigFacade::reload()
 {
+    // Discarding pending changes includes the pending *write* of them.
+    m_save.stop();
     FrappeConfig::self()->read();
     Q_EMIT changed();
 }

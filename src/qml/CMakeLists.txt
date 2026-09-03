@@ -43,6 +43,11 @@ target_link_libraries(frappe-qml PUBLIC
     # DockGeometry lives here and is registered from qmlregistration.h.
     frappe-app
     frappe-core
+    # DockPalette lives here, for the same reason IconProvider does: the colour
+    # scheme is an outside-world resource. Registering it makes the QML module
+    # depend on the platform layer, which is the price of the view reading its
+    # colours from one place.
+    frappe-platform
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2

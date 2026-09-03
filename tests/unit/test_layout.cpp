@@ -75,6 +75,10 @@ private Q_SLOTS:
             const double gap = S / 3.0;
             QCOMPARE(shelfThickness(S, gap) / S, 5.0 / 3.0);
             QCOMPARE(surfaceThickness(S, gap, 2.0 * S) / S, 5.0 / 3.0 + 3.0);
+            // The corner is 0.28 of the thickness, which is 0.47 S. The blur
+            // region is rounded to this same number, so a radius that stopped
+            // scaling would show up as a blur that no longer fits its shelf.
+            QCOMPARE(shelfCornerRadius(shelfThickness(S, gap)) / shelfThickness(S, gap), 0.28);
         }
     }
 

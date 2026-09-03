@@ -3,6 +3,8 @@
 #include "fakes/fakelauncherbackend.h"
 #include "fakes/faketaskbackend.h"
 
+#include <QFile>
+
 #include <QAbstractItemModelTester>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -41,6 +43,73 @@ private:
     }
 
 private Q_SLOTS:
+    /*
+     * Regression, reported 2026-09-03: opening a pinned application added a
+     * second tile beside it instead of lighting the dot under it.
+     *
+     * The window's app id and the pinned entry's id are the same entry written
+     * two ways. libtaskmanager's AppId role returns the KService **storage id**,
+     * which ends in ".desktop"; config holds the bare name. Matching them with
+     * string equality fails, so the running application looks like a different
+     * one.
+     *
+     * (docs/decisions/2026-08-16-libtaskmanager-api-surface.md described AppId
+     * as the storage id "sans extension", which is what this was built on and
+     * is not what it returns. The record has been corrected.)
+     */
+    void aWindowMatchesItsPinnedEntryWhicheverWayTheIdIsWritten()
+    {
+        // As the compositor reports it: with the suffix.
+        {
+            ConfigFacade config(configPath());
+            config.setPinnedEntries({QStringLiteral("alpha")});
+
+            FakeTaskBackend tasks;
+            tasks.addWindow(QStringLiteral("w1"), QStringLiteral("alpha.desktop"));
+
+            TileModel model(&config, &m_launcher, &tasks);
+
+            QCOMPARE(model.rowCount(), 1);
+            QVERIFY(model.tileAt(0).isPinned);
+            QVERIFY(model.tileAt(0).isRunning);
+            QCOMPARE(model.tileAt(0).windowCount, 1);
+        }
+
+        // And the other way round: a config written with the suffix still
+        // matches a window reported without it.
+        {
+            QFile::remove(configPath());
+            ConfigFacade config(configPath());
+            config.setPinnedEntries({QStringLiteral("alpha.desktop")});
+
+            FakeTaskBackend tasks;
+            tasks.addWindow(QStringLiteral("w1"), QStringLiteral("alpha"));
+
+            TileModel model(&config, &m_launcher, &tasks);
+
+            QCOMPARE(model.rowCount(), 1);
+            QVERIFY(model.tileAt(0).isRunning);
+            QCOMPARE(model.tileAt(0).windowCount, 1);
+        }
+    }
+
+    /// Two windows of one application are still one tile when the ids are
+    /// written differently — the count has to survive the normalisation too.
+    void windowCountsAggregateAcrossIdSpellings()
+    {
+        ConfigFacade config(configPath());
+        config.setPinnedEntries({QStringLiteral("alpha")});
+
+        FakeTaskBackend tasks;
+        tasks.addWindow(QStringLiteral("w1"), QStringLiteral("alpha"));
+        tasks.addWindow(QStringLiteral("w2"), QStringLiteral("alpha.desktop"));
+
+        TileModel model(&config, &m_launcher, &tasks);
+
+        QCOMPARE(model.rowCount(), 1);
+        QCOMPARE(model.tileAt(0).windowCount, 2);
+    }
+
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);

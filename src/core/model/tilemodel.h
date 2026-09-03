@@ -94,6 +94,12 @@ public:
     /// to translate one to the other means reaching into the model from the view.
     Q_INVOKABLE bool unpinTile(int row);
 
+    /// Writes the current order of both orderable regions back to config.
+    ///
+    /// Both, not just the one that moved: rebuild() re-derives the order from
+    /// config, so a region left unwritten is a region whose move is undone.
+    void persistOrder();
+
     /// The Region \a row belongs to, as an int, or Region::Pinned for a row
     /// that does not exist. QML needs it to decide what a drop aimed there
     /// means, and a model that answers is better than a view that guesses.

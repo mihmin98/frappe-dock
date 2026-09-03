@@ -128,6 +128,14 @@ TestCase {
         fuzzyCompare(paddingTop, expectedGap, expectedGap * 0.01);
         fuzzyCompare(paddingBottom, expectedGap, expectedGap * 0.01);
 
+        // The shelf floats S/9 clear of the screen edge. It is the surface's
+        // edge that stands in for the screen's here: the dock item spans the
+        // output on a real surface, and a shelf sitting flush is the usual
+        // symptom of the gap being lost to the reserved zone.
+        let expectedScreenGap = S / 9;
+        let screenGap = dock.height - (shelf.y + shelf.height);
+        fuzzyCompare(screenGap, expectedScreenGap, expectedScreenGap * 0.01);
+
         // Cell pitch, measured between two laid-out tiles.
         let pitch = repeater.itemAt(1).x - repeater.itemAt(0).x;
         fuzzyCompare(pitch, expectedPitch, expectedPitch * 0.01);

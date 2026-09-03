@@ -167,7 +167,7 @@ Item {
                     x: entry.iconX
                     width: fan.cellSize
                     height: fan.cellSize
-                    source: entry.iconName.length > 0 ? "image://frappeicon/" + entry.iconName : ""
+                    source: entry.iconName.length > 0 ? "image://frappeicon/" + entry.iconName + IconTreatment.token : ""
                     sourceSize: Qt.size(fan.cellSize, fan.cellSize)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
@@ -179,7 +179,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: entry.name
                     font.pixelSize: fan.cellSize / 3
-                    color: palette.windowText
+                    color: DockPalette.text
                     horizontalAlignment: entry.labelTrails ? Text.AlignLeft : Text.AlignRight
                     // Middle, not right: file names in a folder often share a
                     // prefix and differ at the end, which is the part elision

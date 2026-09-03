@@ -86,6 +86,22 @@ ApplicationWindow {
             Layout.fillWidth: true
         }
 
+        // Not geometry, but there is nowhere else to reach it until §7.3's
+        // Appearance page exists, and "the mode applies live" is a claim that
+        // cannot be checked without a way to change it while the dock is up.
+        RowLayout {
+            Layout.fillWidth: true
+
+            Label { text: qsTr("Icon treatment") }
+
+            ComboBox {
+                Layout.fillWidth: true
+                model: [qsTr("Default"), qsTr("Dark"), qsTr("Tinted")]
+                currentIndex: FrappeConfig.appearanceMode
+                onActivated: FrappeConfig.appearanceMode = currentIndex
+            }
+        }
+
         CheckBox {
             text: qsTr("Magnification")
             checked: FrappeConfig.magnificationEnabled

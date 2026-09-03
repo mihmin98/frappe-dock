@@ -139,6 +139,10 @@ private Q_SLOTS:
         QVERIFY(model.setPinned(QStringLiteral("beta"), true));
         QVERIFY(model.data(model.index(1, 0), TileModel::IsPinnedRole).toBool());
 
+        // The write-through is deferred past the end of the gesture, so the
+        // restart this stands in for has to happen after it lands.
+        config.save();
+
         ConfigFacade reloaded(configPath());
         QCOMPARE(reloaded.pinnedEntries(),
                  QStringList({QStringLiteral("alpha"), QStringLiteral("beta")}));

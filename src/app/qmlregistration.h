@@ -15,6 +15,8 @@
 #include "core/model/stacksettings.h"
 #include "core/model/tile.h"
 #include "core/model/tilemodel.h"
+#include "platform/iconpipeline.h"
+#include "platform/palette.h"
 
 /*
  * QML registration for the C++ types.
@@ -300,6 +302,47 @@ public:
     static StackAnchor *create(QQmlEngine *engine, QJSEngine *)
     {
         return new StackAnchor(engine);
+    }
+};
+
+/// The dock's colours, as the singleton every view reads them from.
+///
+/// Named `DockPalette` and not `Palette` because QML already attaches a
+/// `palette` property to every Item: two things a binding could plausibly mean
+/// is worse than a longer name.
+struct DockPaletteSingleton {
+    Q_GADGET
+    QML_FOREIGN(frappe::DockPalette)
+    QML_NAMED_ELEMENT(DockPalette)
+    QML_SINGLETON
+
+public:
+    static DockPalette *create(QQmlEngine *, QJSEngine *)
+    {
+        DockPalette *palette = DockPalette::instance();
+        // The singleton outlives every engine, so the engine must not take it.
+        QQmlEngine::setObjectOwnership(palette, QQmlEngine::CppOwnership);
+        return palette;
+    }
+};
+
+/// The icon pipeline, as the singleton the views take their cache token from.
+///
+/// Named for what a view wants from it rather than for what it is: a delegate
+/// asks `IconTreatment.token`, not for a pipeline.
+struct IconTreatmentSingleton {
+    Q_GADGET
+    QML_FOREIGN(frappe::IconPipeline)
+    QML_NAMED_ELEMENT(IconTreatment)
+    QML_SINGLETON
+
+public:
+    static IconPipeline *create(QQmlEngine *, QJSEngine *)
+    {
+        IconPipeline *pipeline = IconPipeline::instance();
+        // The singleton outlives every engine, so the engine must not take it.
+        QQmlEngine::setObjectOwnership(pipeline, QQmlEngine::CppOwnership);
+        return pipeline;
     }
 };
 

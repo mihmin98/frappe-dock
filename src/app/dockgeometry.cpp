@@ -241,6 +241,16 @@ qreal DockGeometry::surfaceThickness() const
     return geometry::surfaceThickness(m_layout.maxTileSize, m_layout.spacing, peak);
 }
 
+qreal DockGeometry::shelfThickness() const
+{
+    return geometry::shelfThickness(m_layout.maxTileSize, m_layout.spacing);
+}
+
+qreal DockGeometry::shelfRadius() const
+{
+    return geometry::shelfCornerRadius(shelfThickness());
+}
+
 int DockGeometry::rowAt(qreal position) const
 {
     const int tile = geometry::hitTest(m_magnified, position);
@@ -287,6 +297,10 @@ void DockGeometry::rebuild()
 
     m_layout.tileCount = tiles;
     m_base = geometry::layout(m_layout);
+
+    // Before republish(), so a consumer that reads both in one go sees the
+    // resting layout that the magnified one was derived from.
+    Q_EMIT restingChanged();
     republish();
 }
 

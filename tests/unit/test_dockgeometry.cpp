@@ -31,6 +31,65 @@ class TestDockGeometry : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    /*
+     * Regression, found by manual testing on 2026-09-03: QML reported
+     *
+     *   Binding loop detected for property "restingOrigin"
+     *
+     * on every pointer move, which is every frame of a hover or a drag.
+     *
+     * The loop ran through this class. Dock.qml computes `restingOrigin` from
+     * `restingLength`, and feeds `pointerPosition` from `restingOrigin`. With a
+     * single aggregate signal, writing the pointer re-notified the *resting*
+     * layout too — so QML re-evaluated `restingOrigin`, which rewrote
+     * `pointerPosition`, until Qt broke the loop and warned.
+     *
+     * The resting layout genuinely does not depend on where the pointer is.
+     * Saying so in the signals is what stops the view from believing otherwise.
+     */
+    void pointerMotionDoesNotRenotifyTheRestingLayout()
+    {
+        DockGeometry g;
+        g.setTileSize(48.0);
+        g.setAvailableLength(1440.0);
+        g.setTileCount(5);
+
+        QSignalSpy resting(&g, &DockGeometry::restingChanged);
+        QSignalSpy magnified(&g, &DockGeometry::changed);
+
+        const qreal restingLengthBefore = g.restingLength();
+
+        g.setPointerPosition(120.0);
+        g.setPointerPosition(160.0);
+        g.setPointerPosition(-1.0);
+
+        // The pointer moved, so the magnified layout did.
+        QCOMPARE(magnified.count(), 3);
+        // The resting layout did not, and must not have said it did.
+        QCOMPARE(resting.count(), 0);
+        QCOMPARE(g.restingLength(), restingLengthBefore);
+    }
+
+    /// The resting layout still reports when it really does change, or the view
+    /// would bind to a number that never updates.
+    void layoutChangesDoRenotifyTheRestingLayout()
+    {
+        DockGeometry g;
+        g.setTileSize(48.0);
+        g.setAvailableLength(1440.0);
+        g.setTileCount(5);
+
+        QSignalSpy resting(&g, &DockGeometry::restingChanged);
+
+        g.setTileCount(7);
+        QCOMPARE(resting.count(), 1);
+
+        g.setTileSize(64.0);
+        QCOMPARE(resting.count(), 2);
+
+        QVERIFY(g.restingLength() > 0);
+    }
+
     void publishesOneEntryPerRow()
     {
         DockGeometry g;

@@ -172,6 +172,47 @@ TestCase {
         compare(dock.draggingRow, -1);
     }
 
+    /*
+     * Regression, reported from manual testing on 2026-09-03: the dock froze
+     * while dragging a tile *over* the strip.
+     *
+     * A real pointer does not arrive one cell at a time. It delivers a stream
+     * of moves, many of them at the same place, and the existing tests here all
+     * jump a whole cell per move — so none of them could see what happens when
+     * it stops. If the reflow that follows a move puts the pointer back over
+     * the row it came from, the next move undoes it, and the drag ping-pongs
+     * for as long as the finger is held still. Every swap writes the pinned
+     * order to config, and every write reconfigures every layer surface.
+     */
+    function test_aStationaryDragDoesNotKeepReordering() {
+        let dock = makeDock(false);
+        let geometry = findChild(dock, "geometry");
+        verify(geometry);
+        // Magnification on: it is the reflow under the pointer that can put the
+        // dragged row back where it started.
+        geometry.magnificationEnabled = true;
+
+        let start = centreOf(dock, 0);
+        let target = centreOf(dock, 1);
+
+        mousePress(dock, start.x, start.y);
+        mouseMove(dock, target.x, target.y);
+
+        let settled = order(dock);
+        let settledRow = dock.draggingRow;
+
+        // The finger stops. The moves keep coming, as they do in a real
+        // session — a pixel of jitter either way, no more.
+        for (let i = 0; i < 24; ++i) {
+            mouseMove(dock, target.x + (i % 2), target.y);
+        }
+
+        compare(order(dock), settled);
+        compare(dock.draggingRow, settledRow);
+
+        mouseRelease(dock, target.x, target.y);
+    }
+
     function test_dragAcrossTheStripLandsAtTheEnd() {
         let dock = makeDock(false);
 

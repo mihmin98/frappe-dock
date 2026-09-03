@@ -2,9 +2,11 @@
 
 #include "core/config/configfacade.h"
 #include "core/model/tilemodel.h"
+#include "platform/iconpipeline.h"
 #include "platform/iconprovider.h"
 #include "platform/launcherbackend.h"
 #include "platform/outputprovider.h"
+#include "platform/palette.h"
 #include "platform/quickviewsurfacefactory.h"
 #include "platform/surfacemanager.h"
 #include "platform/taskbackend.h"
@@ -59,7 +61,30 @@ int main(int argc, char **argv)
     frappe::ConfigFacade *config = frappe::ConfigFacade::instance();
 
     const frappe::LauncherBackend launcher;
-    const frappe::IconProvider icons;
+
+    // The views ask the pipeline, never the raw provider: the treatment an icon
+    // gets is part of resolving it, not a filter someone might forget to apply.
+    const frappe::IconProvider themeIcons;
+    // The singleton, not a local: QML reads its cache token, and a second
+    // pipeline would hand the views a token for treatment they are not seeing.
+    frappe::IconPipeline *icons = frappe::IconPipeline::instance();
+    icons->setSource(&themeIcons);
+
+    frappe::DockPalette *palette = frappe::DockPalette::instance();
+    const auto followPalette = [icons, palette] { icons->setAccent(palette->accent()); };
+    followPalette();
+    QObject::connect(palette, &frappe::DockPalette::changed, icons, followPalette);
+
+    // The appearance mode applies live: the pipeline drops its cache and the
+    // views re-request as they redraw. Nothing restarts.
+    static_assert(int(frappe::IconPipeline::Mode::Default) == frappe::ConfigFacade::Default);
+    static_assert(int(frappe::IconPipeline::Mode::Tinted) == frappe::ConfigFacade::Tinted);
+    const auto followConfig = [icons, config] {
+        icons->setMode(static_cast<frappe::IconPipeline::Mode>(config->appearanceMode()));
+    };
+    followConfig();
+    QObject::connect(config, &frappe::ConfigFacade::changed, icons, followConfig);
+
     frappe::OutputProvider outputs;
 
     frappe::TaskBackend tasks;
@@ -67,7 +92,7 @@ int main(int argc, char **argv)
     frappe::TileModel model(config, &launcher, &tasks);
     frappe::DockController controller(&model, &launcher, &tasks);
 
-    frappe::QuickViewSurfaceFactory factory(config, &model, &icons);
+    frappe::QuickViewSurfaceFactory factory(config, &model, icons);
     factory.setController(&controller);
     QObject::connect(&factory, &frappe::QuickViewSurfaceFactory::tileClicked,
                      &controller, &frappe::DockController::tileClicked);
@@ -90,11 +115,17 @@ int main(int argc, char **argv)
         surfaces.reconcile();
     });
 
-    // Settings changes can alter both which surfaces exist and how thick they
-    // are, so both have to be reapplied.
-    QObject::connect(config, &frappe::ConfigFacade::changed, &app, [&] {
+    // Three narrow connections, not one broad one. Reordering the dock is a
+    // drag, and it changes the *contents* — driving the surface set and the
+    // layer-shell geometry from the same signal reconfigured every surface
+    // several times a gesture, to record a change in the pinned order.
+    QObject::connect(config, &frappe::ConfigFacade::contentsChanged, &app, [&model] {
         model.rebuild();
+    });
+    QObject::connect(config, &frappe::ConfigFacade::surfaceSetChanged, &app, [&surfaces] {
         surfaces.reconcile();
+    });
+    QObject::connect(config, &frappe::ConfigFacade::surfaceGeometryChanged, &app, [&factory] {
         factory.updateGeometry();
     });
 

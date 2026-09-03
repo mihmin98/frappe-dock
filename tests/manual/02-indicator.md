@@ -75,6 +75,15 @@ per-application.
 - [ ] **Indicator appears when an app launches.** With the dock up and nothing running, no tile
       carries a dot. Launch Konsole from inside the nested session. **Pass:** a dot appears under
       the Konsole tile within one frame of the window mapping, without any other tile changing.
+
+      **This row has caught a real defect once** (2026-09-03, found by the user): a *second* tile
+      appeared beside the pinned one instead. The window's app id carries a `.desktop` suffix and
+      `pinnedEntries` does not, so the merge failed on string equality. Every unit test passed,
+      because the fake backend was written from a decision record that described the role wrongly
+      — which is exactly why this row cannot be replaced by one. If it happens again, the
+      diagnosis is one line:
+      `QT_LOGGING_RULES="frappe.taskbackend.debug=true"` prints the app id of every window
+      reported, to compare against `pinnedEntries`.
 - [ ] **Indicator appears for an unpinned app, along with its tile.** Launch Kate, which is not
       in `pinnedEntries`. **Pass:** a new tile appears after the two pinned ones, carrying a dot.
       The pinned tiles do not move.

@@ -1,5 +1,7 @@
 #include "platform/taskbackend.h"
 
+#include <QLoggingCategory>
+
 #include <QUrl> // the taskmanager headers only forward-declare it
 
 #include <abstracttasksmodel.h>
@@ -82,6 +84,8 @@ void TaskBackend::notifyChanged()
     }
 }
 
+Q_LOGGING_CATEGORY(FRAPPE_TASKBACKEND, "frappe.taskbackend")
+
 std::vector<WindowInfo> TaskBackend::windows() const
 {
     std::vector<WindowInfo> result;
@@ -101,6 +105,12 @@ std::vector<WindowInfo> TaskBackend::windows() const
         info.title = index.data(Qt::DisplayRole).toString(); // there is no Title role
         info.isMinimized = index.data(Role::IsMinimized).toBool();
         info.isActive = index.data(Role::IsActive).toBool();
+
+        // What the merge with a pinned tile keys on. A window whose app id does
+        // not equal the pinned entry's id becomes a second tile beside it, so
+        // when that happens this is the line that says why.
+        qCDebug(FRAPPE_TASKBACKEND) << "window" << info.windowId << "appId" << info.appId;
+
         result.push_back(std::move(info));
     }
 

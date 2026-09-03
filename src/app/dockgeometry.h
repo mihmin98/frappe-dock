@@ -82,19 +82,27 @@ class DockGeometry : public QObject
     /// tile count and size, which is what makes it usable as the origin the
     /// pointer is measured from: an origin that moved with the shelf would be
     /// a feedback loop.
-    Q_PROPERTY(qreal restingLength READ restingLength NOTIFY changed)
+    Q_PROPERTY(qreal restingLength READ restingLength NOTIFY restingChanged)
 
     /// The cell edge the resting layout settled on: `tileSize`, or less once
     /// the strip has had to compress. What the view needs for anything sized
     /// against the cell but not placed as one — a separator's rule, say.
-    Q_PROPERTY(qreal effectiveTileSize READ effectiveTileSize NOTIFY changed)
+    Q_PROPERTY(qreal effectiveTileSize READ effectiveTileSize NOTIFY restingChanged)
 
     /// How thick the surface has to be to draw everything the dock draws: the
     /// shelf, the magnification peak above it, and the room the drag-out gesture
     /// needs. Exposed rather than recomputed in QML so the view and the layer
     /// surface cannot drift apart — they are the same number from the same
     /// function, and a shelf-sized view clips the gesture it is meant to show.
-    Q_PROPERTY(qreal surfaceThickness READ surfaceThickness NOTIFY changed)
+    Q_PROPERTY(qreal surfaceThickness READ surfaceThickness NOTIFY restingChanged)
+
+    /// The shelf's thickness across the dock's axis, and the corner radius that
+    /// follows from it. Both come from the engine for the same reason
+    /// surfaceThickness does: the blur region is rounded to this corner in C++
+    /// and the shelf is drawn with it in QML, and two copies of the ratio would
+    /// be one copy too many.
+    Q_PROPERTY(qreal shelfThickness READ shelfThickness NOTIFY restingChanged)
+    Q_PROPERTY(qreal shelfRadius READ shelfRadius NOTIFY restingChanged)
 
 public:
     explicit DockGeometry(QObject *parent = nullptr);
@@ -138,6 +146,8 @@ public:
     qreal restingLength() const;
     qreal effectiveTileSize() const;
     qreal surfaceThickness() const;
+    qreal shelfThickness() const;
+    qreal shelfRadius() const;
 
     /// Which **model row** is at \a position, or -1. Read off the same
     /// placements the view drew from, never recomputed: two implementations
@@ -156,9 +166,20 @@ public:
     Q_INVOKABLE qreal restingCentreOfRow(int row) const;
 
 Q_SIGNALS:
-    /// One signal for every input and output. The view rebinds the whole strip
-    /// whatever changed, so splitting this would buy nothing.
+    /// The magnified layout moved: tile placements, and the shelf's length and
+    /// start. Emitted on every pointer move, which is every frame of a hover.
     void changed();
+
+    /// The **resting** layout moved — the layout the pointer is not part of.
+    ///
+    /// Separate from changed() because the difference is load-bearing, not
+    /// cosmetic. Dock.qml computes `restingOrigin` from `restingLength` and
+    /// then feeds `pointerPosition` from `restingOrigin`; with one signal for
+    /// both, writing the pointer re-notified the resting layout, QML
+    /// re-evaluated `restingOrigin`, and that rewrote the pointer — a binding
+    /// loop on every frame of every drag. The resting layout genuinely does not
+    /// depend on where the pointer is, and this is where that gets said.
+    void restingChanged();
 
 private:
     /// Rebuilds the resting layout. Everything but pointer motion goes through

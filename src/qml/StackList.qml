@@ -107,7 +107,7 @@ Item {
                 Image {
                     width: list.cellSize
                     height: list.cellSize
-                    source: row.iconName.length > 0 ? "image://frappeicon/" + row.iconName : ""
+                    source: row.iconName.length > 0 ? "image://frappeicon/" + row.iconName + IconTreatment.token : ""
                     sourceSize: Qt.size(list.cellSize, list.cellSize)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
@@ -118,7 +118,7 @@ Item {
                     width: list.labelWidths * list.cellSize
                     text: row.name
                     font.pixelSize: list.cellSize / 3
-                    color: palette.windowText
+                    color: DockPalette.text
                     elide: Text.ElideMiddle
                 }
             }

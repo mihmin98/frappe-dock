@@ -112,7 +112,7 @@ Item {
         width: tile.horizontal ? 1 : 1.25 * tile.iconSize
         height: tile.horizontal ? 1.25 * tile.iconSize : 1
 
-        color: Qt.rgba(1, 1, 1, 0.3)
+        color: DockPalette.separator
     }
 
     /*
@@ -189,11 +189,11 @@ Item {
         height: width
         radius: 0.28 * height
 
-        color: tile.dropState === "accepted" ? Qt.rgba(1, 1, 1, 0.25)
-                                             : Qt.rgba(0.8, 0.1, 0.1, 0.25)
+        color: tile.dropState === "accepted" ? DockPalette.dropAccepted
+                                             : DockPalette.dropRejected
         border.width: 1
-        border.color: tile.dropState === "accepted" ? Qt.rgba(1, 1, 1, 0.5)
-                                                    : Qt.rgba(1, 0.3, 0.3, 0.8)
+        border.color: tile.dropState === "accepted" ? DockPalette.rimAccepted
+                                                    : DockPalette.rimRejected
     }
 
     /*
@@ -214,7 +214,7 @@ Item {
 
         color: "transparent"
         border.width: 2
-        border.color: Qt.rgba(1, 1, 1, 0.8)
+        border.color: DockPalette.accent
 
         // Restarts with each arming, and runs for the delay itself rather than
         // a fraction of it: the ring reaching the tile *is* the spring-load.
@@ -246,7 +246,7 @@ Item {
         // Ask for artwork at the size it is drawn at rather than scaling a
         // cached bitmap up.
         sourceSize: Qt.size(tile.iconSize, tile.iconSize)
-        source: tile.entryIcon.length > 0 ? "image://frappeicon/" + tile.entryIcon : ""
+        source: tile.entryIcon.length > 0 ? "image://frappeicon/" + tile.entryIcon + IconTreatment.token : ""
 
         fillMode: Image.PreserveAspectFit
         smooth: true

@@ -39,7 +39,7 @@ Item {
 
             Image {
                 anchors.fill: parent
-                source: "image://frappeicon/go-previous"
+                source: "image://frappeicon/go-previous" + IconTreatment.token
                 sourceSize: Qt.size(width, height)
                 fillMode: Image.PreserveAspectFit
                 smooth: true
@@ -77,7 +77,7 @@ Item {
 
                     text: crumb.modelData.name
                     font.pixelSize: header.cellSize / 3.5
-                    color: palette.windowText
+                    color: DockPalette.text
                     // The last crumb is where you already are.
                     opacity: crumb.index === breadcrumb.count - 1 ? 1 : 0.7
 

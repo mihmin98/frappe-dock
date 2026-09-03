@@ -48,6 +48,15 @@ Item {
     /// something to dismiss, and nothing the moment there is not.
     signal stackRegionChanged(rect region)
 
+    /// Where the shelf is, in surface coordinates.
+    ///
+    /// The surface spans the whole output, so the compositor cannot be asked to
+    /// blur "the window" — that would blur the screen. It is told to blur this
+    /// rectangle instead, and the rectangle has to keep up: the shelf grows
+    /// under magnification and moves as the strip reflows, and a blur left where
+    /// the shelf used to be is worse than none.
+    signal shelfRegionChanged(rect region)
+
     // --- The proportion model -------------------------------------------
     readonly property real iconSize: FrappeConfig.tileSize      // S, the layout cell
     // S/3. The ratio comes from GeometryTuning rather than being written here,
@@ -56,7 +65,10 @@ Item {
     // dock that cannot exist.
     readonly property real gap: iconSize * GeometryTuning.spacingRatio
     readonly property real thickness: iconSize + 2 * gap        // 5S/3
-    readonly property real shelfRadius: 0.28 * thickness        // 0.28 x thickness
+    // From the engine, not written again here: the blur region is rounded to
+    // the same corner in C++, and a second copy of the ratio is how the shelf
+    // and its blur end up rounded differently.
+    readonly property real shelfRadius: geometry.shelfRadius
 
     /// The dock floats: g/3 between the shelf and the screen edge. It used to be
     /// a layer-shell margin, but the surface now spans the whole output so that
@@ -428,16 +440,16 @@ Item {
            ? dock.shelfCross - dock.gap - height
            : Math.max(0, Math.min(dock.height - height, dock.dropRefusalAxis - height / 2))
 
-        color: Qt.rgba(0, 0, 0, 0.7)
+        color: DockPalette.plate
         border.width: 1
-        border.color: Qt.rgba(1, 0.3, 0.3, 0.8)
+        border.color: DockPalette.rimRejected
 
         Text {
             id: refusalText
             objectName: "dropRefusalText"
             anchors.centerIn: parent
             text: dock.dropRefusal
-            color: "white"
+            color: DockPalette.text
         }
     }
 
@@ -472,17 +484,16 @@ Item {
         y: dock.horizontal ? dock.dragPointer.y - dock.iconSize - height
                            : Math.max(0, Math.min(dock.height - height, dock.dragPointerAxis - height / 2))
 
-        color: Qt.rgba(0, 0, 0, 0.6)
+        color: DockPalette.plate
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.3)
+        border.color: DockPalette.separator
 
         Text {
             id: removeLabel
             objectName: "removeLabel"
             anchors.centerIn: parent
-            // Colour and type are Phase 6's business; the wording is not.
             text: qsTr("Remove")
-            color: "white"
+            color: DockPalette.text
         }
     }
 
@@ -531,16 +542,26 @@ Item {
             SmoothedAnimation { velocity: -1; duration: dock.duration }
         }
 
-        // Colour and material are Phase 6's business, delegated to the blur
-        // effect and the colour scheme. What is normative here is the shape and
-        // the rim stroke's existence and 1 pt width, which does not scale.
-        color: Qt.rgba(1, 1, 1, 0.12)
+        // Material is the blur effect's business and colour is the scheme's.
+        // What is normative here is the shape, and the rim stroke's existence
+        // and 1 pt width, which does not scale.
+        color: DockPalette.shelf
         border.width: 1
         // The rim states what a drop onto the shelf would do: it is the whole
         // shelf that is being aimed at, so it is the whole shelf that answers.
-        border.color: stripDrop.dropState === "accepted" ? Qt.rgba(1, 1, 1, 0.8)
-                      : stripDrop.dropState === "rejected" ? Qt.rgba(1, 0.3, 0.3, 0.8)
-                      : Qt.rgba(1, 1, 1, 0.2)
+        border.color: stripDrop.dropState === "accepted" ? DockPalette.rimAccepted
+                      : stripDrop.dropState === "rejected" ? DockPalette.rimRejected
+                      : DockPalette.rim
+
+        // The compositor is told where to blur, and told again whenever the
+        // shelf moves or grows. Bound to the drawn geometry rather than the
+        // resting one, so the blur follows magnification instead of leaving a
+        // dry band along the shelf's grown edges.
+        onXChanged: dock.publishShelfRegion()
+        onYChanged: dock.publishShelfRegion()
+        onWidthChanged: dock.publishShelfRegion()
+        onHeightChanged: dock.publishShelfRegion()
+        Component.onCompleted: dock.publishShelfRegion()
 
         /*
          * Spring-loading: a drag left resting on a tile activates it, so the
@@ -914,6 +935,10 @@ Item {
         onWidthChanged: dock.publishStackRegion()
         onHeightChanged: dock.publishStackRegion()
         onOpenChanged: dock.publishStackRegion()
+    }
+
+    function publishShelfRegion() {
+        dock.shelfRegionChanged(Qt.rect(shelf.x, shelf.y, shelf.width, shelf.height));
     }
 
     function publishStackRegion() {

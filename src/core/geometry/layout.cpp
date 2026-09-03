@@ -104,6 +104,13 @@ double shelfThickness(double tileSize, double gap)
     return tileSize + 2.0 * gap;
 }
 
+double shelfCornerRadius(double thickness)
+{
+    // The fitted superellipse in Part 0 comes out at n ~ 2.2 — near enough
+    // circular that a plain radius is right and a squircle shader is not.
+    return 0.28 * thickness;
+}
+
 double surfaceThickness(double tileSize, double gap, double peakTileSize)
 {
     // A magnified tile keeps its outer edge on the resting icon's line — one

@@ -21,7 +21,7 @@ Text {
 
     horizontalAlignment: Text.AlignHCenter
     font.pixelSize: cellSize / 3.5
-    color: palette.windowText
+    color: DockPalette.text
     opacity: 0.7
     wrapMode: Text.Wrap
     visible: loading || failed || empty

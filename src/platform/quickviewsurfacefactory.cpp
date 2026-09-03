@@ -4,7 +4,10 @@
 #include "core/geometry/layout.h"
 #include "core/interfaces/iiconprovider.h"
 #include "core/model/tilemodel.h"
+#include "platform/blurregion.h"
 #include "platform/iconprovider.h"
+
+#include <KWindowEffects>
 
 #include <LayerShellQt/Window>
 
@@ -15,6 +18,8 @@
 #include <QQuickItem>
 #include <QQuickView>
 #include <QScreen>
+
+#include <utility>
 
 using namespace frappe;
 
@@ -45,6 +50,12 @@ QuickViewSurfaceFactory::QuickViewSurfaceFactory(ConfigFacade *config,
     , m_model(model)
     , m_icons(icons)
 {
+    // Zero-interval and single-shot: everything the shelf reports within one
+    // turn of the event loop becomes one blur update, and the update still
+    // lands before the frame it belongs to is drawn.
+    m_blurUpdate.setSingleShot(true);
+    m_blurUpdate.setInterval(0);
+    connect(&m_blurUpdate, &QTimer::timeout, this, &QuickViewSurfaceFactory::flushBlur);
 }
 
 QuickViewSurfaceFactory::~QuickViewSurfaceFactory()
@@ -107,6 +118,11 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
         if (!connect(root, SIGNAL(stackRegionChanged(QRectF)), this, SLOT(onStackRegionChanged(QRectF)))) {
             qCWarning(FRAPPE_SURFACE) << "Dock.qml has no stackRegionChanged signal; stacks will not accept clicks";
         }
+        // Without this the compositor is never told where to blur, and the
+        // shelf is a flat translucent slab that looks like the effect is off.
+        if (!connect(root, SIGNAL(shelfRegionChanged(QRectF)), this, SLOT(onShelfRegionChanged(QRectF)))) {
+            qCWarning(FRAPPE_SURFACE) << "Dock.qml has no shelfRegionChanged signal; the shelf will not be blurred";
+        }
         view->setProperty("frappeOutputId", outputId);
     }
 
@@ -129,8 +145,67 @@ void QuickViewSurfaceFactory::onStackRegionChanged(const QRectF &region)
     setStackRegion(view->property("frappeOutputId").toString(), region.toAlignedRect());
 }
 
+void QuickViewSurfaceFactory::onShelfRegionChanged(const QRectF &region)
+{
+    auto *root = qobject_cast<QQuickItem *>(sender());
+    QQuickView *view = root ? qobject_cast<QQuickView *>(root->window()) : nullptr;
+    if (!view) {
+        return;
+    }
+
+    setShelfRegion(view->property("frappeOutputId").toString(), region.toAlignedRect());
+}
+
+void QuickViewSurfaceFactory::setShelfRegion(const QString &outputId, const QRect &rect)
+{
+    if (m_shelfRegions.value(outputId) == rect) {
+        return;
+    }
+    m_shelfRegions.insert(outputId, rect);
+
+    // Coalesced, not applied here. The shelf reports x, y, width and height as
+    // four separate changes, so a magnifying dock would otherwise re-send the
+    // blur region four times a frame — three of them describing a shelf that
+    // was already superseded before the compositor saw it.
+    m_blurPending.insert(outputId);
+    m_blurUpdate.start();
+}
+
+void QuickViewSurfaceFactory::flushBlur()
+{
+    const QSet<QString> pending = std::exchange(m_blurPending, {});
+    for (const QString &outputId : pending) {
+        if (QQuickView *view = m_views.value(outputId)) {
+            applyBlur(view, outputId);
+        }
+    }
+}
+
+void QuickViewSurfaceFactory::applyBlur(QQuickView *view, const QString &outputId)
+{
+    const QRect shelf = m_shelfRegions.value(outputId);
+    if (shelf.isNull()) {
+        return;
+    }
+
+    // Explicitly, and per surface. The blur effect matches on window class and
+    // type, neither of which a layer surface has, so it does not pick the dock
+    // up on its own however dock-like the dock is — see
+    // docs/decisions/2026-08-16-blur-route.md. With the effect absent or
+    // disabled this is simply ignored and the shelf falls back to flat
+    // translucency, which needs no code of its own.
+    const qreal tileSize = m_config->tileSize();
+    const int radius = qRound(geometry::shelfCornerRadius(
+        geometry::shelfThickness(tileSize, tileSize / 3.0)));
+    KWindowEffects::enableBlurBehind(view, true, blurRegion(shelf, radius));
+    view->requestUpdate();
+}
+
 void QuickViewSurfaceFactory::destroySurface(const QString &outputId)
 {
+    m_shelfRegions.remove(outputId);
+    // Or the flush would look up a view that has gone.
+    m_blurPending.remove(outputId);
     m_stackRegions.remove(outputId);
     // The model holds a raw pointer into the backend and calls it from the
     // change callback, so it has to go first.
@@ -314,6 +389,9 @@ void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInf
     layer->setExclusiveZone(shelfThickness + screenGap);
 
     applyMask(view, output.id);
+    // The shelf's own rectangle is the view's to report and may not have
+    // arrived yet; when it has, this re-applies it against the new size.
+    applyBlur(view, output.id);
 
     // Layer-surface state is double-buffered and latches on the next surface
     // commit. With a static scene Qt renders no new frame, so without this the

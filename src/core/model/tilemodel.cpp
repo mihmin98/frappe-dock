@@ -1,6 +1,7 @@
 #include "core/model/tilemodel.h"
 
 #include "core/config/configfacade.h"
+#include "core/desktopid.h"
 #include "core/interfaces/ilauncherbackend.h"
 #include "core/interfaces/itaskbackend.h"
 
@@ -60,11 +61,14 @@ std::vector<std::pair<QString, int>> countByApp(const std::vector<WindowInfo> &w
             continue;
         }
 
-        const auto it = std::find_if(counts.begin(), counts.end(), [&window](const auto &entry) {
-            return entry.first == window.appId;
+        // Keyed on the canonical id, so two windows of one application are one
+        // entry however the compositor spelled each of them.
+        const QString key = desktopEntryKey(window.appId);
+        const auto it = std::find_if(counts.begin(), counts.end(), [&key](const auto &entry) {
+            return entry.first == key;
         });
         if (it == counts.end()) {
-            counts.emplace_back(window.appId, 1);
+            counts.emplace_back(key, 1);
         } else {
             ++it->second;
         }
@@ -72,10 +76,32 @@ std::vector<std::pair<QString, int>> countByApp(const std::vector<WindowInfo> &w
     return counts;
 }
 
+/// Whether \a tile's position in the strip is persisted, and so whether it can
+/// be reordered at all.
+///
+/// Only two things are written down: the pinned application ids, and the file
+/// paths. Everything else — a running application that is not pinned, a
+/// minimized window, a separator — is derived, and takes the place the rebuild
+/// gives it. Dragging one of those is a gesture the model cannot honour, and
+/// pretending otherwise is what froze the dock.
+bool isOrderable(const Tile &tile)
+{
+    if (tile.kind == TileKind::Separator) {
+        return false;
+    }
+    if (tile.region == Region::Files) {
+        return true;
+    }
+    return tile.region == Region::Pinned && tile.isPinned;
+}
+
 int countFor(const std::vector<std::pair<QString, int>> &counts, const QString &appId)
 {
-    const auto it = std::find_if(counts.begin(), counts.end(), [&appId](const auto &entry) {
-        return entry.first == appId;
+    // The pinned id comes from config and may carry the suffix or not; the
+    // counts are already canonical.
+    const QString key = desktopEntryKey(appId);
+    const auto it = std::find_if(counts.begin(), counts.end(), [&key](const auto &entry) {
+        return entry.first == key;
     });
     return it == counts.end() ? 0 : it->second;
 }
@@ -212,7 +238,14 @@ std::vector<Tile> TileModel::buildTiles(QStringList *unmatched) const
     // tagged Pinned: they share the band with the pinned tiles and differ only in
     // that they disappear when their last window closes.
     for (const auto &[appId, count] : counts) {
-        if (pinned.contains(appId)) {
+        // Canonical on both sides: a pinned entry written with the suffix still
+        // claims its running window, and the window does not get a tile of its
+        // own beside it.
+        const auto isPinnedAlready = std::any_of(pinned.cbegin(), pinned.cend(),
+                                                 [&appId](const QString &id) {
+                                                     return desktopEntryKey(id) == appId;
+                                                 });
+        if (isPinnedAlready) {
             continue;
         }
 
@@ -424,6 +457,26 @@ bool TileModel::moveTile(int from, int to)
         return false;
     }
 
+    // A move the model cannot keep is worse than a move refused.
+    //
+    // rebuild() re-derives the whole order from config, so a move config cannot
+    // express is one the model undoes moments later. Accepting it is worse than
+    // refusing it, because the caller is a **drag**: it asks again on the next
+    // pointer event, and every round writes config — which saves to disk — then
+    // rebuilds and puts the tile back. That loop froze the dock
+    // (anAcceptedMoveSurvivesARebuild).
+    //
+    // So the rule is not about regions as such: it is about whether the tile's
+    // position is written down anywhere.
+    if (!isOrderable(m_tiles[from]) || !isOrderable(m_tiles[to])) {
+        return false;
+    }
+    if (m_tiles[from].region != m_tiles[to].region) {
+        // Two orderable tiles, but in different lists. Regions are not a
+        // decoration on the order, they are the order.
+        return false;
+    }
+
     // beginMoveRows takes the destination as a position *before* the removal is
     // applied, so a forward move needs one added to it.
     const int destination = to > from ? to + 1 : to;
@@ -436,18 +489,37 @@ bool TileModel::moveTile(int from, int to)
     m_tiles.insert(m_tiles.begin() + to, std::move(moved));
     endMoveRows();
 
-    if (m_config) {
-        QStringList pinned;
-        pinned.reserve(static_cast<qsizetype>(m_tiles.size()));
-        for (const Tile &tile : m_tiles) {
-            if (tile.isPinned) {
-                pinned.append(tile.id);
-            }
-        }
-        m_config->setPinnedEntries(pinned);
+    persistOrder();
+    return true;
+}
+
+void TileModel::persistOrder()
+{
+    if (!m_config) {
+        return;
     }
 
-    return true;
+    // Both lists, every time. A file tile that moved and was not written back
+    // is the same defect as a pinned one: rebuild() reads the order from here,
+    // so whatever is not written here does not survive.
+    QStringList pinned;
+    QStringList files;
+    for (const Tile &tile : m_tiles) {
+        // A separator carries the region of the band it introduces, so it has
+        // to be excluded by kind. Writing its id into fileEntries makes it a
+        // file, and the next rebuild draws a second separator for it.
+        if (tile.kind == TileKind::Separator) {
+            continue;
+        }
+        if (tile.region == Region::Files) {
+            files.append(tile.id);
+        } else if (tile.isPinned) {
+            pinned.append(tile.id);
+        }
+    }
+
+    m_config->setPinnedEntries(pinned);
+    m_config->setFileEntries(files);
 }
 
 bool TileModel::setPinned(const QString &tileId, bool pinned)

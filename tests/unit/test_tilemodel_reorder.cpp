@@ -4,11 +4,14 @@
 #include "fakes/faketaskbackend.h"
 
 #include <QAbstractItemModelTester>
+#include <QFile>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <memory>
 
 using namespace frappe;
 
@@ -40,7 +43,61 @@ private:
         return m_dir.filePath(QStringLiteral("frappe-dockrc"));
     }
 
+    /// A model with one of everything the dock can hold: two pinned
+    /// applications, two running unpinned ones, two files and two minimized
+    /// windows, with the separators those regions bring.
+    ///
+    /// The config and the backend have to outlive the model, so they travel
+    /// with it.
+    struct Fixture {
+        std::unique_ptr<ConfigFacade> config;
+        std::unique_ptr<FakeTaskBackend> tasks;
+        std::unique_ptr<TileModel> model;
+    };
+
+    Fixture makeMixedModel()
+    {
+        QFile::remove(configPath());
+
+        Fixture fixture;
+        fixture.config = std::make_unique<ConfigFacade>(configPath());
+        fixture.config->setPinnedEntries({QStringLiteral("alpha"), QStringLiteral("beta")});
+        fixture.config->setFileEntries({m_dir.filePath(QStringLiteral("one.txt")),
+                                        m_dir.filePath(QStringLiteral("two.txt"))});
+        fixture.config->setMinimizeIntoIcon(false);
+
+        fixture.tasks = std::make_unique<FakeTaskBackend>();
+        // Running but not pinned: they share the application band with the
+        // pinned tiles and have no persisted position of their own.
+        fixture.tasks->addWindow(QStringLiteral("w1"), QStringLiteral("gamma"));
+        fixture.tasks->addWindow(QStringLiteral("w2"), QStringLiteral("delta"));
+
+        WindowInfo minimizedOne;
+        minimizedOne.windowId = QStringLiteral("w3");
+        minimizedOne.appId = QStringLiteral("alpha");
+        minimizedOne.title = QStringLiteral("Alpha window");
+        minimizedOne.isMinimized = true;
+        fixture.tasks->addWindow(minimizedOne);
+
+        WindowInfo minimizedTwo = minimizedOne;
+        minimizedTwo.windowId = QStringLiteral("w4");
+        minimizedTwo.title = QStringLiteral("Second window");
+        fixture.tasks->addWindow(minimizedTwo);
+
+        fixture.model = std::make_unique<TileModel>(fixture.config.get(), &m_launcher,
+                                                    fixture.tasks.get());
+        return fixture;
+    }
+
 private Q_SLOTS:
+    /// ConfigFacade redirects a process-wide singleton at one path, so state a
+    /// test leaves behind is state the next one inherits. Clearing it here is
+    /// what keeps the suite order-independent.
+    void cleanup()
+    {
+        QFile::remove(configPath());
+    }
+
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
@@ -50,6 +107,60 @@ private Q_SLOTS:
         m_launcher.addEntry(QStringLiteral("beta"), QStringLiteral("Beta"), QStringLiteral("beta-icon"));
         m_launcher.addEntry(QStringLiteral("gamma"), QStringLiteral("Gamma"), QStringLiteral("gamma-icon"));
         m_launcher.addEntry(QStringLiteral("delta"), QStringLiteral("Delta"), QStringLiteral("delta-icon"));
+    }
+
+    /*
+     * Regression, reported from manual testing on 2026-09-03: the dock froze
+     * while dragging a tile over the strip, and again — after a first, partial
+     * fix — while dragging an *unpinned* one.
+     *
+     * The rule the model has to obey is one sentence: **a move it accepts must
+     * be a fixed point of rebuild().** rebuild() re-derives the whole order from
+     * config, so a move config cannot express is a move the model undoes moments
+     * later. Accepting it is worse than refusing it, because the caller is a
+     * drag: it asks again on the next pointer event, and every round writes
+     * config — which calls save(), a synchronous disk write — rebuilds the model,
+     * and reconfigures every layer surface.
+     *
+     * Checked exhaustively rather than case by case, because the first fix was
+     * written case by case and missed two: unpinned running tiles, whose order
+     * is never written to config at all, and minimized-window tiles, likewise.
+     * Every pair of rows, over a model that has one of everything.
+     */
+    void anAcceptedMoveSurvivesARebuild()
+    {
+        // Sized from a fresh model so the loop covers rows that only exist
+        // because of the regions below.
+        const int rows = [this] {
+            auto fixture = makeMixedModel();
+            return fixture.model->rowCount();
+        }();
+        QVERIFY(rows >= 8);
+
+        for (int from = 0; from < rows; ++from) {
+            for (int to = 0; to < rows; ++to) {
+                auto fixture = makeMixedModel();
+                TileModel &model = *fixture.model;
+
+                const QStringList before = idsOf(model);
+                if (!model.moveTile(from, to)) {
+                    // A refusal must also leave the order alone.
+                    QCOMPARE(idsOf(model), before);
+                    continue;
+                }
+
+                const QStringList afterMove = idsOf(model);
+                model.rebuild();
+
+                QVERIFY2(idsOf(model) == afterMove,
+                         qPrintable(QStringLiteral("moving row %1 to %2 gave [%3], "
+                                                   "rebuild made it [%4]")
+                                        .arg(from)
+                                        .arg(to)
+                                        .arg(afterMove.join(QLatin1Char(',')))
+                                        .arg(idsOf(model).join(QLatin1Char(',')))));
+            }
+        }
     }
 
     void correctSequenceAfterReorder_data()
@@ -191,19 +302,23 @@ private Q_SLOTS:
 
     void configUpdatedWithNewOrder()
     {
-        ConfigFacade config(configPath());
-        config.setPinnedEntries({QStringLiteral("alpha"), QStringLiteral("beta"), QStringLiteral("gamma")});
-
-        TileModel model(&config, &m_launcher);
-        QVERIFY(model.moveTile(0, 2));
-
         const QStringList expected{QStringLiteral("beta"), QStringLiteral("gamma"), QStringLiteral("alpha")};
-        QCOMPARE(config.pinnedEntries(), expected);
 
-        // What the user actually cares about: the order is still there after the
-        // dock is restarted. Re-reading through a second facade on the same file
-        // is that restart, minus the process. Nothing calls save() here on
-        // purpose -- see orderSurvivesWithoutAnExplicitSave.
+        {
+            ConfigFacade config(configPath());
+            config.setPinnedEntries({QStringLiteral("alpha"), QStringLiteral("beta"),
+                                     QStringLiteral("gamma")});
+
+            TileModel model(&config, &m_launcher);
+            QVERIFY(model.moveTile(0, 2));
+
+            QCOMPARE(config.pinnedEntries(), expected);
+        }
+        // The scope ends, which is the restart: the write-through is deferred
+        // past the end of the gesture, and going away flushes it, exactly as
+        // quitting does. Nothing calls save() on purpose -- see
+        // orderSurvivesWithoutAnExplicitSave.
+
         ConfigFacade reloaded(configPath());
         QCOMPARE(reloaded.pinnedEntries(), expected);
 
@@ -253,7 +368,19 @@ private Q_SLOTS:
 
     /// Only pinned tiles have a persisted position. Dragging a running but
     /// unpinned application about must not quietly pin it.
-    void unpinnedTilesAreNotWrittenToConfig()
+    /*
+     * An unpinned running tile has no persisted position, so it cannot be
+     * dragged to one.
+     *
+     * This test previously asserted the opposite — that moving the unpinned
+     * tile to the front was **accepted** while config kept only the pinned ids.
+     * That is the freeze from 2026-09-03 written down as an expectation: a move
+     * the model accepts but cannot persist is one that the next rebuild() undoes,
+     * and the caller is a drag that asks again on every pointer event. The
+     * intent of the test — that unpinned tiles never reach config — is kept
+     * below; only the accept-and-undo half is gone.
+     */
+    void unpinnedTilesCannotBeReorderedAndAreNotWrittenToConfig()
     {
         ConfigFacade config(configPath());
         config.setPinnedEntries({QStringLiteral("alpha"), QStringLiteral("beta")});
@@ -266,12 +393,21 @@ private Q_SLOTS:
                                             QStringLiteral("gamma")}));
         QVERIFY(!model.data(model.index(2, 0), TileModel::IsPinnedRole).toBool());
 
-        QVERIFY(model.moveTile(2, 0));
+        // Refused, in both directions: the running tile cannot be dragged into
+        // the pinned run, and a pinned tile cannot be dragged past it.
+        QVERIFY(!model.moveTile(2, 0));
+        QVERIFY(!model.moveTile(0, 2));
+        QCOMPARE(idsOf(model), QStringList({QStringLiteral("alpha"), QStringLiteral("beta"),
+                                            QStringLiteral("gamma")}));
 
-        QCOMPARE(idsOf(model), QStringList({QStringLiteral("gamma"), QStringLiteral("alpha"),
-                                            QStringLiteral("beta")}));
+        // A move among the pinned tiles is still a move, and still writes only
+        // the pinned ids — gamma is running, not pinned, and never reaches
+        // config.
+        QVERIFY(model.moveTile(0, 1));
+        QCOMPARE(idsOf(model), QStringList({QStringLiteral("beta"), QStringLiteral("alpha"),
+                                            QStringLiteral("gamma")}));
         QCOMPARE(config.pinnedEntries(),
-                 QStringList({QStringLiteral("alpha"), QStringLiteral("beta")}));
+                 QStringList({QStringLiteral("beta"), QStringLiteral("alpha")}));
     }
 };
 

@@ -134,7 +134,7 @@ Item {
                     // The icon name comes from the backend, which resolves a
                     // folder to a folder icon and a file to its type's — so
                     // folders read as folders without this file deciding it.
-                    source: entry.iconName.length > 0 ? "image://frappeicon/" + entry.iconName : ""
+                    source: entry.iconName.length > 0 ? "image://frappeicon/" + entry.iconName + IconTreatment.token : ""
                     sourceSize: Qt.size(grid.cellSize, grid.cellSize)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
@@ -145,7 +145,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: entry.name
                     font.pixelSize: labelMetrics.font.pixelSize
-                    color: palette.windowText
+                    color: DockPalette.text
                     maximumLineCount: 2
                     wrapMode: Text.Wrap
                     elide: Text.ElideRight

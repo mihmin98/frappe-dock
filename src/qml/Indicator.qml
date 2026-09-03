@@ -79,7 +79,7 @@ Item {
                 width: indicator.dotSize
                 height: indicator.dotSize
                 radius: width / 2
-                color: Qt.rgba(1, 1, 1, 0.85)
+                color: DockPalette.indicator
             }
         }
     }
