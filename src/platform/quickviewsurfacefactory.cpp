@@ -66,6 +66,14 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
         return;
     }
 
+    // Built before the view, because it is passed in as an initial property and
+    // Dock.qml binds to it while the component is being completed.
+    auto backend = std::make_unique<FolderBackend>();
+    auto stackModel = std::make_unique<StackModel>(backend.get());
+    StackModel *stackModelRaw = stackModel.get();
+    m_folderBackends.insert_or_assign(output.id, std::move(backend));
+    m_stackModels.insert_or_assign(output.id, std::move(stackModel));
+
     auto *view = new QQuickView;
     view->setResizeMode(QQuickView::SizeRootObjectToView);
     view->setColor(Qt::transparent);
@@ -73,6 +81,7 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
     view->setInitialProperties({
         {QStringLiteral("tileModel"), QVariant::fromValue(m_model)},
         {QStringLiteral("controller"), QVariant::fromValue(m_controller)},
+        {QStringLiteral("stackModel"), QVariant::fromValue(stackModelRaw)},
     });
     view->setSource(QUrl(QString::fromLatin1(dockQmlUrl)));
 
@@ -91,6 +100,14 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
         if (!connect(root, SIGNAL(tileHeld(QString)), this, SIGNAL(tileHeld(QString)))) {
             qCWarning(FRAPPE_SURFACE) << "Dock.qml has no tileHeld signal; press and hold will do nothing";
         }
+
+        // The open stack has to join the input region or it is drawn and dead
+        // to the pointer, which looks exactly like a stack that failed to open.
+        const QString outputId = output.id;
+        if (!connect(root, SIGNAL(stackRegionChanged(QRectF)), this, SLOT(onStackRegionChanged(QRectF)))) {
+            qCWarning(FRAPPE_SURFACE) << "Dock.qml has no stackRegionChanged signal; stacks will not accept clicks";
+        }
+        view->setProperty("frappeOutputId", outputId);
     }
 
     m_views.insert(output.id, view);
@@ -98,8 +115,28 @@ void QuickViewSurfaceFactory::createSurface(const OutputInfo &output)
     view->show();
 }
 
+void QuickViewSurfaceFactory::onStackRegionChanged(const QRectF &region)
+{
+    // The sender is the QML root; which surface it belongs to is stamped on the
+    // view, because one factory serves every output and the signal carries only
+    // the rectangle.
+    auto *root = qobject_cast<QQuickItem *>(sender());
+    QQuickView *view = root ? qobject_cast<QQuickView *>(root->window()) : nullptr;
+    if (!view) {
+        return;
+    }
+
+    setStackRegion(view->property("frappeOutputId").toString(), region.toAlignedRect());
+}
+
 void QuickViewSurfaceFactory::destroySurface(const QString &outputId)
 {
+    m_stackRegions.remove(outputId);
+    // The model holds a raw pointer into the backend and calls it from the
+    // change callback, so it has to go first.
+    m_stackModels.erase(outputId);
+    m_folderBackends.erase(outputId);
+
     QQuickView *view = m_views.take(outputId);
     if (!view) {
         return;
@@ -138,6 +175,71 @@ void QuickViewSurfaceFactory::updateGeometry()
         output.id = it.key();
         configureSurface(it.value(), output);
     }
+}
+
+void QuickViewSurfaceFactory::setStackRegion(const QString &outputId, const QRect &rect)
+{
+    if (m_stackRegions.value(outputId) == rect) {
+        return;
+    }
+
+    if (rect.isNull()) {
+        m_stackRegions.remove(outputId);
+    } else {
+        m_stackRegions.insert(outputId, rect);
+    }
+
+    if (QQuickView *view = m_views.value(outputId)) {
+        applyMask(view, outputId);
+        // Double-buffered, like everything else the compositor is told: without
+        // a commit the new region never reaches it and the stack stays dead to
+        // the pointer.
+        view->requestUpdate();
+    }
+}
+
+void QuickViewSurfaceFactory::applyMask(QQuickView *view, const QString &outputId)
+{
+    const qreal tileSize = m_config->tileSize();
+    const qreal gap = tileSize / 3.0;
+    const int screenGap = qRound(gap / 3.0);
+    const int shelfThickness = qRound(geometry::shelfThickness(tileSize, gap));
+
+    QScreen *screen = screenForOutput(outputId);
+
+    // Input stops at the shelf. Without this the surface would swallow clicks
+    // across the whole screen edge over a band as tall as the largest possible
+    // tile — mostly empty space, and at a high peak most of the band. Nothing is
+    // lost by it: hover is driven from the shelf, so the headroom was never
+    // interactive.
+    // Measured from where the shelf actually is, not from the surface's edge:
+    // those were the same thing while the surface was shelf-sized and are not
+    // now. The shelf sits screenGap in from the edge — Dock.qml's shelfCross.
+    const QRect span = screen ? screen->geometry() : QRect(0, 0, 8192, 8192);
+    QRegion region;
+    switch (m_config->position()) {
+    case ConfigFacade::Left:
+        region = QRegion(screenGap, 0, shelfThickness, span.height());
+        break;
+    case ConfigFacade::Right:
+        region = QRegion(span.width() - screenGap - shelfThickness, 0, shelfThickness, span.height());
+        break;
+    case ConfigFacade::Bottom:
+    default:
+        region = QRegion(0, span.height() - screenGap - shelfThickness, span.width(), shelfThickness);
+        break;
+    }
+
+    // An open stack is drawn outside the shelf and has to be clickable, so its
+    // rectangle joins the region for as long as it is open — and leaves it
+    // again on close, or the dock would keep swallowing clicks over a stack
+    // that is no longer there.
+    const QRect stack = m_stackRegions.value(outputId);
+    if (!stack.isNull()) {
+        region += stack;
+    }
+
+    view->setMask(region);
 }
 
 void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInfo &output)
@@ -211,29 +313,7 @@ void QuickViewSurfaceFactory::configureSurface(QQuickView *view, const OutputInf
     // outside the shelf is drawn into but not occupied.
     layer->setExclusiveZone(shelfThickness + screenGap);
 
-    // Input stops at the shelf too. Without this the surface would swallow
-    // clicks across the whole screen edge over a band as tall as the largest
-    // possible tile — mostly empty space, and at a high peak most of the band.
-    // Nothing is lost by it: hover is driven from the shelf, so the headroom
-    // was never interactive.
-    // Measured from where the shelf actually is, not from the surface's edge:
-    // those were the same thing while the surface was shelf-sized and are not
-    // now. The shelf sits screenGap in from the edge — Dock.qml's shelfCross.
-    const QRect span = screen ? screen->geometry() : QRect(0, 0, 8192, 8192);
-    switch (m_config->position()) {
-    case ConfigFacade::Left:
-        view->setMask(QRegion(screenGap, 0, shelfThickness, span.height()));
-        break;
-    case ConfigFacade::Right:
-        view->setMask(QRegion(span.width() - screenGap - shelfThickness, 0,
-                              shelfThickness, span.height()));
-        break;
-    case ConfigFacade::Bottom:
-    default:
-        view->setMask(QRegion(0, span.height() - screenGap - shelfThickness,
-                              span.width(), shelfThickness));
-        break;
-    }
+    applyMask(view, output.id);
 
     // Layer-surface state is double-buffered and latches on the next surface
     // commit. With a static scene Qt renders no new frame, so without this the

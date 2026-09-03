@@ -63,6 +63,15 @@ public:
         return {};
     }
 
+    std::expected<void, Error> openUrl(const QUrl &url) const override
+    {
+        if (!url.isValid()) {
+            return std::unexpected(Error::NotFound);
+        }
+        m_openedUrls.append(url.toString());
+        return {};
+    }
+
     std::expected<void, Error> openWith(const QString &id, const QList<QUrl> &files) const override
     {
         if (!m_entries.contains(id)) {
@@ -113,6 +122,12 @@ public:
         return m_launchedActions;
     }
 
+    /// Urls passed to openUrl(), in order.
+    QStringList openedUrls() const
+    {
+        return m_openedUrls;
+    }
+
     /// "<id>:<url>" for each url passed to openWith(), in order.
     QStringList opened() const
     {
@@ -140,6 +155,7 @@ private:
     mutable QStringList m_launched;
     mutable QStringList m_launchedActions;
     mutable QStringList m_opened;
+    mutable QStringList m_openedUrls;
     mutable QStringList m_revealed;
     mutable QSet<QString> m_autostart;
 };

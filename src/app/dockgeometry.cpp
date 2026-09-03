@@ -252,6 +252,21 @@ int DockGeometry::rowAt(qreal position) const
     return row == m_tileOfRow.end() ? -1 : int(row - m_tileOfRow.begin());
 }
 
+qreal DockGeometry::restingCentreOfRow(int row) const
+{
+    if (row < 0 || row >= static_cast<int>(m_tileOfRow.size())) {
+        return -1.0;
+    }
+    const int tile = m_tileOfRow[std::size_t(row)];
+    // A separator is a rule between regions, not a cell. Nothing opens from it.
+    if (tile < 0 || tile >= static_cast<int>(m_base.size())) {
+        return -1.0;
+    }
+
+    const geometry::TilePlacement &placement = m_base[std::size_t(tile)];
+    return placement.offset + placement.size / 2.0;
+}
+
 void DockGeometry::rebuild()
 {
     // The model carries separators as rows; the engine takes them as widened

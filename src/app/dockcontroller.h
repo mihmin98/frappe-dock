@@ -84,6 +84,10 @@ public Q_SLOTS:
     /// is: the dock says why a target is wrong instead of declining in silence.
     QVariantMap evaluateRegionDrop(int region, const QList<QUrl> &files) const;
 
+    /// Opens \a path with the desktop's default handler. What activating a file
+    /// inside a stack means: the user picked the file, not a program.
+    bool openPath(const QString &path);
+
     /// Carries out a drop into \a region: pins the applications in \a files.
     /// Returns false, having done nothing, when the drop is one
     /// evaluateRegionDrop() would have refused.

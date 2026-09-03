@@ -4,7 +4,10 @@
 #include "core/interfaces/ilauncherbackend.h"
 #include "core/interfaces/itaskbackend.h"
 
+#include <QFileInfo>
 #include <QLoggingCategory>
+#include <QMimeDatabase>
+#include <QMimeType>
 
 #include <algorithm>
 
@@ -22,6 +25,12 @@ constexpr auto placeholderIcon = "application-x-executable";
 /// Stable id for the rule between the application region and the minimized one.
 /// The diff keys on ids, so it needs one even though nothing can be done to it.
 constexpr auto minimizedSeparatorId = "separator:minimized";
+
+/// Stable id for the rule between the application region and the file one.
+constexpr auto fileSeparatorId = "separator:files";
+
+/// Icon for a file whose type resolves to nothing the theme knows about.
+constexpr auto genericFileIcon = "text-x-generic";
 
 int indexOfId(const std::vector<Tile> &tiles, const QString &id, int from)
 {
@@ -232,8 +241,66 @@ std::vector<Tile> TileModel::buildTiles(QStringList *unmatched) const
         tiles.push_back(std::move(tile));
     }
 
+    appendFileRegion(tiles);
     appendMinimizedRegion(tiles, windows);
     return tiles;
+}
+
+void TileModel::appendFileRegion(std::vector<Tile> &tiles) const
+{
+    const QStringList paths = m_config ? m_config->fileEntries() : QStringList();
+
+    std::vector<Tile> files;
+    files.reserve(paths.size());
+    for (const QString &path : paths) {
+        const QFileInfo info(path);
+
+        Tile tile;
+        tile.region = Region::Files;
+        tile.id = path;
+        // The path is the id, but the basename is what the user recognises.
+        tile.name = info.fileName().isEmpty() ? path : info.fileName();
+
+        if (info.isDir()) {
+            tile.kind = TileKind::Folder;
+            tile.iconName = QStringLiteral("folder");
+        } else {
+            tile.kind = TileKind::File;
+            // QMimeDatabase is Qt Core, so core can name the icon without any
+            // help from the platform layer. It answers from the file name alone
+            // when the file is gone, which is what keeps a tile for a deleted
+            // file looking like the thing it used to be rather than a blank.
+            static const QMimeDatabase mimeDb;
+            const QMimeType type = mimeDb.mimeTypeForFile(path, QMimeDatabase::MatchExtension);
+            tile.iconName = type.iconName();
+            if (tile.iconName.isEmpty()) {
+                tile.iconName = type.genericIconName();
+            }
+            if (tile.iconName.isEmpty()) {
+                tile.iconName = QString::fromLatin1(genericFileIcon);
+            }
+        }
+        files.push_back(std::move(tile));
+    }
+
+    if (files.empty()) {
+        return;
+    }
+
+    // Same rule as the minimized region: a separator exists only between two
+    // non-empty regions, which is what makes the dock region-structured rather
+    // than one long row. Unlike that region, the file one can be the only thing
+    // in the dock — every application unpinned, one folder dropped — and then
+    // there is nothing to separate it from.
+    if (!tiles.empty()) {
+        Tile separator;
+        separator.kind = TileKind::Separator;
+        separator.region = Region::Files;
+        separator.id = QString::fromLatin1(fileSeparatorId);
+        tiles.push_back(std::move(separator));
+    }
+
+    tiles.insert(tiles.end(), std::make_move_iterator(files.begin()), std::make_move_iterator(files.end()));
 }
 
 void TileModel::appendMinimizedRegion(std::vector<Tile> &tiles, const std::vector<WindowInfo> &windows) const
@@ -406,14 +473,71 @@ bool TileModel::setPinned(const QString &tileId, bool pinned)
     return true;
 }
 
+bool TileModel::addFileEntry(const QString &path)
+{
+    if (!m_config || path.isEmpty()) {
+        return false;
+    }
+
+    // Absolute, so the same folder dropped twice from two different working
+    // directories is recognised as the same entry.
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        return false;
+    }
+    const QString absolute = info.absoluteFilePath();
+
+    QStringList entries = m_config->fileEntries();
+    if (entries.contains(absolute)) {
+        return false;
+    }
+    entries.append(absolute);
+    m_config->setFileEntries(entries);
+    rebuild();
+    return true;
+}
+
+bool TileModel::removeFileEntry(const QString &path)
+{
+    if (!m_config || path.isEmpty()) {
+        return false;
+    }
+
+    QStringList entries = m_config->fileEntries();
+    // By the stored string first, then by absolute path: an entry whose file has
+    // since been deleted still has to be removable, and QFileInfo cannot
+    // absolutise what is no longer there.
+    if (entries.removeAll(path) == 0) {
+        const QString absolute = QFileInfo(path).absoluteFilePath();
+        if (entries.removeAll(absolute) == 0) {
+            return false;
+        }
+    }
+    m_config->setFileEntries(entries);
+    rebuild();
+    return true;
+}
+
 bool TileModel::unpinTile(int row)
 {
     if (row < 0 || row >= static_cast<int>(m_tiles.size())) {
         return false;
     }
     const Tile &tile = m_tiles[row];
+    if (tile.kind == TileKind::Separator) {
+        // A rule is not a tile. It carries the region of what follows it, so
+        // without this the file branch below would be entered for it.
+        return false;
+    }
+
+    // Copied, not referenced: both branches rebuild, and the rebuild is what
+    // destroys the tile the reference points at.
+    const QString id = tile.id;
+    if (tile.region == Region::Files) {
+        return removeFileEntry(id);
+    }
     if (!tile.isPinned) {
         return false;
     }
-    return setPinned(tile.id, false);
+    return setPinned(id, false);
 }

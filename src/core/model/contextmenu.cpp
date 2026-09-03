@@ -1,5 +1,9 @@
 #include "core/model/contextmenu.h"
 
+#include "core/model/stacksettings.h"
+
+#include <iterator>
+
 using namespace frappe;
 using namespace Qt::StringLiterals;
 
@@ -89,6 +93,63 @@ std::vector<MenuItem> frappe::buildContextMenu(const MenuContext &context)
         }
         appendGroup(items, quitting);
     }
+
+    return items;
+}
+
+std::vector<MenuItem> frappe::buildStackMenu(const StackMenuContext &context)
+{
+    std::vector<MenuItem> items;
+
+    // The three modes as checkable rows, one of them checked, rather than a
+    // single row that cycles: a cycling row cannot say what the other options
+    // are, and §5.3 asks the menu to show the current mode.
+    const std::pair<StackViewMode, QString> modes[] = {
+        {StackViewMode::Grid, u"Grid"_s},
+        {StackViewMode::Fan, u"Fan"_s},
+        {StackViewMode::List, u"List"_s},
+    };
+
+    std::vector<MenuItem> view;
+    view.reserve(std::size(modes));
+    for (const auto &[mode, label] : modes) {
+        MenuItem item;
+        item.kind = MenuItemKind::StackView;
+        item.id = QString::number(static_cast<int>(mode));
+        item.label = label;
+        item.checkable = true;
+        item.checked = context.viewMode == static_cast<int>(mode);
+        view.push_back(std::move(item));
+    }
+    appendGroup(items, view);
+
+    // Sorting, as its own group. Five rows beside three would read as one list
+    // of eight unrelated choices without the rule between them.
+    const std::pair<StackSortOrder, QString> orders[] = {
+        {StackSortOrder::Name, u"Sort by Name"_s},
+        {StackSortOrder::DateAdded, u"Sort by Date Added"_s},
+        {StackSortOrder::DateModified, u"Sort by Date Modified"_s},
+        {StackSortOrder::DateCreated, u"Sort by Date Created"_s},
+        {StackSortOrder::Kind, u"Sort by Kind"_s},
+    };
+
+    std::vector<MenuItem> sorting;
+    sorting.reserve(std::size(orders));
+    for (const auto &[order, label] : orders) {
+        MenuItem item;
+        item.kind = MenuItemKind::StackSort;
+        item.id = QString::number(static_cast<int>(order));
+        item.label = label;
+        item.checkable = true;
+        item.checked = context.sortOrder == static_cast<int>(order);
+        sorting.push_back(std::move(item));
+    }
+    appendGroup(items, sorting);
+
+    std::vector<MenuItem> options;
+    options.push_back(simple(MenuItemKind::ShowInFileManager, u"Show in File Manager"_s));
+    options.push_back(simple(MenuItemKind::RemoveFolder, u"Remove from Dock"_s));
+    appendGroup(items, options);
 
     return items;
 }

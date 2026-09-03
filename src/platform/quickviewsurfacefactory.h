@@ -2,9 +2,16 @@
 
 #include <QHash>
 #include <QObject>
+#include <QRect>
+#include <QRectF>
 #include <QUrl>
 
+#include "core/model/stackmodel.h"
+#include "platform/folderbackend.h"
 #include "platform/surfacemanager.h"
+
+#include <map>
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 class QQuickView;
@@ -41,20 +48,46 @@ public:
     /// tileSize or position changes.
     void updateGeometry();
 
+    /// The rectangle an open stack occupies on \a outputId, in surface
+    /// coordinates, or a null rect when no stack is open there.
+    ///
+    /// The surface spans the whole output but accepts input over the shelf
+    /// alone, so anything drawn outside it is visible and unclickable. A stack
+    /// is drawn outside it by definition, and this is what makes it reachable.
+    /// One rect, not a set: only one stack is open at a time.
+    void setStackRegion(const QString &outputId, const QRect &rect);
+
 Q_SIGNALS:
     /// A tile was interacted with. Wired to the controller in main(), which
     /// decides what the interaction means.
     void tileClicked(const QString &tileId, int button, int modifiers);
     void tileHeld(const QString &tileId);
 
+private Q_SLOTS:
+    /// Dock.qml reporting where its open stack is. A by-name connection, so it
+    /// has to be a slot.
+    void onStackRegionChanged(const QRectF &region);
+
 private:
     void configureSurface(QQuickView *view, const OutputInfo &output);
+    /// The input region for \a outputId: the shelf, plus any open stack.
+    void applyMask(QQuickView *view, const QString &outputId);
 
     ConfigFacade *m_config;
     TileModel *m_model;
     const IIconProvider *m_icons;
     QObject *m_controller = nullptr;
     QHash<QString, QQuickView *> m_views;
+    QHash<QString, QRect> m_stackRegions;
+
+    /// One folder backend and model per surface. Only one stack is open at a
+    /// time, so one model serves whichever folder that is — a model per folder
+    /// tile would be a KIO directory watch per folder tile, kept alive for
+    /// folders nobody is looking at.
+    // std::map, not QHash: QHash requires a copyable value type and these
+    // are unique_ptr.
+    std::map<QString, std::unique_ptr<FolderBackend>> m_folderBackends;
+    std::map<QString, std::unique_ptr<StackModel>> m_stackModels;
 };
 
 }

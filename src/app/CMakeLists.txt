@@ -3,6 +3,7 @@
 add_library(frappe-app STATIC
     dockcontroller.cpp
     dockgeometry.cpp
+    stackanchor.cpp
     tuning.cpp
 )
 

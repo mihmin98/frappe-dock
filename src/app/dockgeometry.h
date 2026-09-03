@@ -144,6 +144,17 @@ public:
     /// drift, and the symptom is clicks landing on the neighbouring tile.
     Q_INVOKABLE int rowAt(qreal position) const;
 
+    /// Where \a row's centre sits when nothing is magnified, in the same
+    /// coordinates `tileGeometry` publishes offsets in. -1 for a row that does
+    /// not exist or is a separator.
+    ///
+    /// Read off the *resting* layout, deliberately. It is what an open stack
+    /// anchors to, and the point of it is that it does not move: pointer motion
+    /// changes `tileGeometry` on every event and leaves this alone. Anchoring a
+    /// stack to the magnified centre instead is the reference platform's §11
+    /// defect — the stack jumps the moment the pointer moves.
+    Q_INVOKABLE qreal restingCentreOfRow(int row) const;
+
 Q_SIGNALS:
     /// One signal for every input and output. The view rebinds the whole strip
     /// whatever changed, so splitting this would buy nothing.

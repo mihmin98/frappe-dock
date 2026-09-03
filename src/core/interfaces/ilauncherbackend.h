@@ -39,6 +39,13 @@ public:
     virtual std::expected<void, Error> launchAction(const QString &id, const QString &actionId) const = 0;
     virtual std::expected<void, Error> openWith(const QString &id, const QList<QUrl> &files) const = 0;
 
+    /// Opens \a url with whatever the desktop says should handle it.
+    ///
+    /// Distinct from openWith(): there is no chosen application here, which is
+    /// what activating a file inside a stack means — the user picked the file,
+    /// not the program.
+    virtual std::expected<void, Error> openUrl(const QUrl &url) const = 0;
+
     /// Opens the file manager with the application's desktop entry selected.
     virtual std::expected<void, Error> reveal(const QString &id) const = 0;
 

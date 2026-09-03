@@ -3,6 +3,7 @@
 add_library(frappe-platform STATIC)
 
 target_sources(frappe-platform PRIVATE
+    folderbackend.cpp
     iconprovider.cpp
     launcherbackend.cpp
     outputprovider.cpp

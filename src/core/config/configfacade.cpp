@@ -240,6 +240,24 @@ void ConfigFacade::setPinnedEntries(const QStringList &value)
     Q_EMIT changed();
 }
 
+QStringList ConfigFacade::fileEntries() const
+{
+    return FrappeConfig::fileEntries();
+}
+
+void ConfigFacade::setFileEntries(const QStringList &value)
+{
+    if (value == fileEntries()) {
+        return;
+    }
+    FrappeConfig::setFileEntries(value);
+    // Written through immediately, for the same reason pinnedEntries is:
+    // dropping a folder on the dock is direct manipulation, and the gesture is
+    // the only save point there is.
+    FrappeConfig::self()->save();
+    Q_EMIT changed();
+}
+
 void ConfigFacade::save()
 {
     FrappeConfig::self()->save();

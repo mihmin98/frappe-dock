@@ -76,9 +76,22 @@ public:
     /// removing a tile must never be able to grow into removing a program.
     Q_INVOKABLE bool setPinned(const QString &tileId, bool pinned);
 
-    /// Unpins the tile at \a row. The drag-out gesture knows a row rather than
-    /// an id, and asking it to translate one to the other means reaching into
-    /// the model from the view.
+    /// Adds \a path to the file region, at the end, and rebuilds. Returns false
+    /// when the path is already there or does not exist.
+    ///
+    /// The file-region counterpart to setPinned(): it touches configuration and
+    /// nothing else. Removing a folder tile must never be able to grow into
+    /// removing a folder.
+    Q_INVOKABLE bool addFileEntry(const QString &path);
+
+    /// Removes \a path from the file region and rebuilds. Returns false when it
+    /// was not there.
+    Q_INVOKABLE bool removeFileEntry(const QString &path);
+
+    /// Removes the tile at \a row from whichever list persists it: a pinned
+    /// application from the pinned entries, a file or folder from the file
+    /// region. The drag-out gesture knows a row rather than an id, and asking it
+    /// to translate one to the other means reaching into the model from the view.
     Q_INVOKABLE bool unpinTile(int row);
 
     /// The Region \a row belongs to, as an int, or Region::Pinned for a row
@@ -98,6 +111,8 @@ public:
 
 private:
     std::vector<Tile> buildTiles(QStringList *unmatched) const;
+    /// Appends one tile per configured file or folder, behind a separator.
+    void appendFileRegion(std::vector<Tile> &tiles) const;
     /// Appends one tile per minimized window, behind a separator — unless the
     /// configuration says minimized windows belong on their application's tile.
     void appendMinimizedRegion(std::vector<Tile> &tiles, const std::vector<WindowInfo> &windows) const;

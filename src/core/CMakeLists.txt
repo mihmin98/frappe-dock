@@ -8,11 +8,14 @@ target_sources(frappe-core PRIVATE
     geometry/layout.cpp
     geometry/hittest.cpp
     geometry/magnification.cpp
+    geometry/stackplacement.cpp
     input/dispatch.cpp
     input/springloader.cpp
     model/contextmenu.cpp
     model/filedrop.cpp
     model/regiondrop.cpp
+    model/stackmodel.cpp
+    model/stacksettings.cpp
     model/tilemodel.cpp
     surfaceplan.cpp
 )

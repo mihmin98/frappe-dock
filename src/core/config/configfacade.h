@@ -29,6 +29,7 @@ class ConfigFacade : public QObject
     Q_PROPERTY(bool minimizeIntoIcon READ minimizeIntoIcon WRITE setMinimizeIntoIcon NOTIFY changed)
     Q_PROPERTY(int springLoadDelay READ springLoadDelay WRITE setSpringLoadDelay NOTIFY changed)
     Q_PROPERTY(QStringList pinnedEntries READ pinnedEntries WRITE setPinnedEntries NOTIFY changed)
+    Q_PROPERTY(QStringList fileEntries READ fileEntries WRITE setFileEntries NOTIFY changed)
 
 public:
     /// Mirrors FrappeConfig::EnumPosition, so QML and tests need not include the
@@ -92,6 +93,9 @@ public:
 
     QStringList pinnedEntries() const;
     void setPinnedEntries(const QStringList &value);
+
+    QStringList fileEntries() const;
+    void setFileEntries(const QStringList &value);
 
     /// Writes pending changes to disk.
     Q_INVOKABLE void save();

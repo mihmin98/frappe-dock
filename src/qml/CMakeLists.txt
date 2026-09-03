@@ -23,6 +23,12 @@ qt_add_qml_module(frappe-qml
         Dock.qml
         Tile.qml
         Indicator.qml
+        StackFan.qml
+        StackGrid.qml
+        StackHeader.qml
+        StackList.qml
+        StackPlaceholder.qml
+        StackPopup.qml
         TileMenu.qml
         ${FRAPPE_TUNING_HARNESS_QML}
     SOURCES

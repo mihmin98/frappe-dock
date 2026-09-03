@@ -122,5 +122,19 @@
       <label>Desktop entry ids pinned to the dock, in order</label>
       <default></default>
     </entry>
+
+    <!-- Absolute paths of the files and folders in the file region, in order. A
+         folder here is a stack; a file is a shortcut to itself. Separate from
+         pinnedEntries because the two are different things persisted the same
+         way: one holds desktop entry ids, this holds filesystem paths, and a
+         single list would have to guess which a given string was.
+
+         Empty by default. The reference dock ships a Downloads tile; whether to
+         copy that is a defaults question for §7.0 alongside the other deliberate
+         divergences, not something to decide by accident here. -->
+    <entry name="fileEntries" type="StringList">
+      <label>Paths of the files and folders in the file region, in order</label>
+      <default></default>
+    </entry>
   </group>
 </kcfg>

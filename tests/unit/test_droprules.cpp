@@ -264,6 +264,41 @@ private Q_SLOTS:
         QVERIFY(!controller.acceptRegionDrop(int(Region::Files), {application()}));
         QVERIFY(config.pinnedEntries().isEmpty());
     }
+
+    void droppedFolderJoinsTheFileRegion()
+    {
+        FakeLauncherBackend launcher;
+
+        ConfigFacade config(m_dir.filePath(QStringLiteral("frappe-dockrc")));
+        config.setPinnedEntries({});
+        config.setFileEntries({});
+        TileModel model(&config, &launcher);
+        DockController controller(&model, &launcher);
+
+        QVERIFY(controller.acceptRegionDrop(int(Region::Files), {folder()}));
+        QCOMPARE(config.fileEntries(), QStringList({folder().toLocalFile()}));
+        QCOMPARE(model.rowCount(), 1);
+        QCOMPARE(model.tileAt(0).kind, TileKind::Folder);
+
+        // Dropping it again is a no-op, not a second tile for one folder.
+        QVERIFY(!controller.acceptRegionDrop(int(Region::Files), {folder()}));
+        QCOMPARE(model.rowCount(), 1);
+    }
+
+    void droppedFileJoinsTheFileRegion()
+    {
+        FakeLauncherBackend launcher;
+
+        ConfigFacade config(m_dir.filePath(QStringLiteral("frappe-dockrc")));
+        config.setPinnedEntries({});
+        config.setFileEntries({});
+        TileModel model(&config, &launcher);
+        DockController controller(&model, &launcher);
+
+        QVERIFY(controller.acceptRegionDrop(int(Region::Files), {file()}));
+        QCOMPARE(config.fileEntries(), QStringList({file().toLocalFile()}));
+        QCOMPARE(model.tileAt(0).kind, TileKind::File);
+    }
 };
 
 QTEST_MAIN(TestDropRules)

@@ -4,6 +4,7 @@
 #include "core/interfaces/itaskbackend.h"
 #include "core/model/filedrop.h"
 #include "core/model/regiondrop.h"
+#include "core/model/stacksettings.h"
 #include "core/model/tilemodel.h"
 
 #include <QLoggingCategory>
@@ -12,6 +13,27 @@
 using namespace frappe;
 
 Q_LOGGING_CATEGORY(FRAPPE_DOCK, "frappe.dock")
+
+namespace
+{
+/// Menu rows as QML wants them. Shared by the application and folder menus so
+/// the two cannot describe the same row differently.
+QVariantList toRows(const std::vector<MenuItem> &items)
+{
+    QVariantList rows;
+    rows.reserve(static_cast<qsizetype>(items.size()));
+    for (const MenuItem &item : items) {
+        rows.append(QVariantMap{
+            {QStringLiteral("kind"), static_cast<int>(item.kind)},
+            {QStringLiteral("itemId"), item.id},
+            {QStringLiteral("label"), item.label},
+            {QStringLiteral("checkable"), item.checkable},
+            {QStringLiteral("checked"), item.checked},
+        });
+    }
+    return rows;
+}
+}
 
 DockController::DockController(TileModel *model, const ILauncherBackend *launcher, ITaskBackend *tasks, QObject *parent)
     : QObject(parent)
@@ -110,6 +132,18 @@ std::vector<WindowInfo> DockController::windowsOf(const QString &appId) const
 
 QVariantList DockController::contextMenuFor(const QString &tileId) const
 {
+    // A folder tile is about a folder, not an application: how to draw the
+    // stack and how to take it off the dock, none of which buildContextMenu()
+    // knows anything about.
+    if (const Tile *tile = tileFor(tileId); tile && tile->kind == TileKind::Folder) {
+        StackMenuContext stack;
+        stack.folderPath = tile->id;
+        stack.folderName = tile->name;
+        stack.viewMode = StackSettings::instance()->viewMode(tile->id);
+        stack.sortOrder = StackSettings::instance()->sortOrder(tile->id);
+        return toRows(buildStackMenu(stack));
+    }
+
     // A minimized-window tile stands for a window, not an application, so none
     // of the menu's rows — pin, open at login, quit the app — are about it. An
     // empty list means no popup rather than an empty one.
@@ -136,17 +170,7 @@ QVariantList DockController::contextMenuFor(const QString &tileId) const
     // — see the notes on 2.5.1. The model supports it; nothing can ask for it.
     context.isResponsive = true;
 
-    QVariantList rows;
-    for (const MenuItem &item : buildContextMenu(context)) {
-        rows.append(QVariantMap{
-            {QStringLiteral("kind"), static_cast<int>(item.kind)},
-            {QStringLiteral("itemId"), item.id},
-            {QStringLiteral("label"), item.label},
-            {QStringLiteral("checkable"), item.checkable},
-            {QStringLiteral("checked"), item.checked},
-        });
-    }
-    return rows;
+    return toRows(buildContextMenu(context));
 }
 
 QVariantMap DockController::evaluateDrop(const QString &tileId, const QList<QUrl> &files) const
@@ -222,10 +246,19 @@ bool DockController::acceptRegionDrop(int region, const QList<QUrl> &files)
         return false;
     }
 
-    // Applications are the only payload with anywhere to go: the file region
-    // has no contents until Phase 5, so a file drop cannot be aimed at it and
-    // has already been refused above.
-    if (classifyPayload(files) != DropItemKind::Application) {
+    const DropItemKind kind = classifyPayload(files);
+
+    if (kind == DropItemKind::File || kind == DropItemKind::Folder) {
+        bool addedAny = false;
+        for (const QUrl &file : files) {
+            // Local paths only. A remote URL has no path for the file region to
+            // hold, and evaluateRegionDrop classifies it as Unknown anyway.
+            addedAny = m_model->addFileEntry(file.toLocalFile()) || addedAny;
+        }
+        return addedAny;
+    }
+
+    if (kind != DropItemKind::Application) {
         return false;
     }
 
@@ -234,6 +267,20 @@ bool DockController::acceptRegionDrop(int region, const QList<QUrl> &files)
         pinnedAny = m_model->setPinned(entryIdFor(file), true) || pinnedAny;
     }
     return pinnedAny;
+}
+
+bool DockController::openPath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const auto result = m_launcher->openUrl(QUrl::fromLocalFile(path));
+    if (!result) {
+        qCWarning(FRAPPE_DOCK) << "Could not open" << path << "error" << static_cast<int>(result.error());
+        return false;
+    }
+    return true;
 }
 
 bool DockController::openDroppedFiles(const QString &tileId, const QList<QUrl> &files)
@@ -298,6 +345,25 @@ void DockController::menuItemTriggered(const QString &tileId, int kind, const QS
 
     case MenuItemKind::ShowInFileManager:
         route(input::Command::RevealInFileManager, tileId);
+        return;
+
+    case MenuItemKind::StackView:
+        // itemId is the mode as a decimal string; the menu carries one kind for
+        // all three rows so the set can grow without the switch learning about it.
+        StackSettings::instance()->setViewMode(tileId, itemId.toInt());
+        return;
+
+    case MenuItemKind::StackSort:
+        StackSettings::instance()->setSortOrder(tileId, itemId.toInt());
+        return;
+
+    case MenuItemKind::RemoveFolder:
+        if (m_model) {
+            // Forget the folder's preferences too: a stored view mode for a
+            // folder no longer on the dock is a line with nothing to apply it to.
+            m_model->removeFileEntry(tileId);
+            StackSettings::instance()->forget(tileId);
+        }
         return;
 
     case MenuItemKind::Quit:

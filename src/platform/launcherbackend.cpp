@@ -1,6 +1,8 @@
 #include "platform/launcherbackend.h"
 
 #include <KIO/ApplicationLauncherJob>
+#include <KIO/OpenUrlJob>
+#include <KJob>
 #include <KIO/OpenFileManagerWindowJob>
 #include <KService>
 #include <KServiceAction>
@@ -36,10 +38,13 @@ QString autostartPath(const KService::Ptr &service)
     return dir + QLatin1Char('/') + QFileInfo(service->entryPath()).fileName();
 }
 
-/// ApplicationLauncherJob deletes itself when it finishes, so the job must not
-/// be owned or waited on. Failure is reported asynchronously and only logged;
-/// there is nothing useful to hand back to a caller that has already returned.
-std::expected<void, Error> startJob(KIO::ApplicationLauncherJob *job, const QString &id)
+/// These jobs delete themselves when they finish, so one must not be owned or
+/// waited on. Failure is reported asynchronously and only logged; there is
+/// nothing useful to hand back to a caller that has already returned.
+///
+/// Takes a KJob rather than a concrete type: every job started here is one, and
+/// nothing below reaches past that interface.
+std::expected<void, Error> startJob(KJob *job, const QString &id)
 {
     QObject::connect(job, &KJob::result, job, [job, id] {
         if (job->error()) {
@@ -113,6 +118,31 @@ std::expected<void, Error> LauncherBackend::openWith(const QString &id, const QL
     auto *job = new KIO::ApplicationLauncherJob(service);
     job->setUrls(files);
     return startJob(job, id);
+}
+
+std::expected<void, Error> LauncherBackend::openUrl(const QUrl &url) const
+{
+    if (!url.isValid()) {
+        return std::unexpected(Error::NotFound);
+    }
+
+    // OpenUrlJob rather than ApplicationLauncherJob: it resolves the handler
+    // from the MIME type itself, which is the whole point — nobody chose a
+    // program, and asking KIO is what makes the answer the desktop's default
+    // rather than ours.
+    auto *job = new KIO::OpenUrlJob(url);
+    // And for the same reason, executables and desktop entries are KIO's to
+    // decide about too. With this false, a desktop entry opened from a stack is
+    // handed to a text editor — so a stack pointed at an applications directory
+    // becomes an application grid in which clicking an application reads its
+    // source, which is the one thing that use of it must not do.
+    //
+    // True does not mean running whatever it is handed: KIO applies its own
+    // trust rule, launching entries in the standard application directories and
+    // prompting for anything outside them. That rule is the desktop's, which is
+    // exactly what the comment above says we are here to defer to.
+    job->setRunExecutables(true);
+    return startJob(job, url.toString());
 }
 
 std::expected<void, Error> LauncherBackend::reveal(const QString &id) const

@@ -3,6 +3,7 @@
 #include <QQmlEngine>
 
 #include "app/dockgeometry.h"
+#include "app/stackanchor.h"
 #include "app/tuning.h"
 #include "core/config/configfacade.h"
 #include "core/input/dispatch.h"
@@ -10,6 +11,8 @@
 #include "core/model/contextmenu.h"
 #include "core/model/filedrop.h"
 #include "core/model/regiondrop.h"
+#include "core/model/stackmodel.h"
+#include "core/model/stacksettings.h"
 #include "core/model/tile.h"
 #include "core/model/tilemodel.h"
 
@@ -38,11 +41,13 @@ enum Value {
     MinimizedWindow,
     Trash,
     Separator,
+    File,
 };
 Q_ENUM_NS(Value)
 
 static_assert(static_cast<int>(TileKind::Application) == Application);
 static_assert(static_cast<int>(TileKind::Separator) == Separator);
+static_assert(static_cast<int>(TileKind::File) == File);
 }
 
 /// input::Command, mirrored so QML can decide which interactions it handles
@@ -84,11 +89,51 @@ enum Value {
     ShowInFileManager,
     Quit,
     ForceQuit,
+    StackView,
+    RemoveFolder,
+    StackSort,
 };
 Q_ENUM_NS(Value)
 
 static_assert(static_cast<int>(MenuItemKind::Separator) == Separator);
 static_assert(static_cast<int>(MenuItemKind::ForceQuit) == ForceQuit);
+static_assert(static_cast<int>(MenuItemKind::StackSort) == StackSort);
+}
+
+/// StackViewMode, mirrored so a view can name the mode it is.
+namespace StackViewModeNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(StackViewMode)
+
+enum Value {
+    Grid,
+    Fan,
+    List,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(StackViewMode::Grid) == Grid);
+static_assert(static_cast<int>(StackViewMode::List) == List);
+}
+
+/// StackSortOrder, mirrored so a settings page can name the orders.
+namespace StackSortOrderNamespace
+{
+Q_NAMESPACE
+QML_NAMED_ELEMENT(StackSortOrder)
+
+enum Value {
+    Name,
+    DateAdded,
+    DateModified,
+    DateCreated,
+    Kind,
+};
+Q_ENUM_NS(Value)
+
+static_assert(static_cast<int>(StackSortOrder::Name) == Name);
+static_assert(static_cast<int>(StackSortOrder::Kind) == Kind);
 }
 
 /// DropRejection, mirrored so the tile can word the refusal. The reason is
@@ -192,6 +237,32 @@ struct TileModelForeign {
     QML_UNCREATABLE("TileModel is constructed by the application")
 };
 
+/// StackModel, so QML can name the type of an injected model and reach its
+/// Status enum: StackModel.Loading and friends.
+struct StackModelForeign {
+    Q_GADGET
+    QML_FOREIGN(frappe::StackModel)
+    QML_NAMED_ELEMENT(StackModel)
+    QML_UNCREATABLE("StackModel is constructed by the application")
+};
+
+/// The per-folder stack preferences, as the singleton a view binds its mode to.
+struct StackSettingsSingleton {
+    Q_GADGET
+    QML_FOREIGN(frappe::StackSettings)
+    QML_NAMED_ELEMENT(StackSettings)
+    QML_SINGLETON
+
+public:
+    static StackSettings *create(QQmlEngine *, QJSEngine *)
+    {
+        StackSettings *settings = StackSettings::instance();
+        // The singleton outlives every engine, so the engine must not take it.
+        QQmlEngine::setObjectOwnership(settings, QQmlEngine::CppOwnership);
+        return settings;
+    }
+};
+
 /// ConfigFacade as a type, for its enums: ConfigFacade.Bottom and friends.
 struct ConfigFacadeForeign {
     Q_GADGET
@@ -214,6 +285,21 @@ public:
         // The singleton outlives every engine, so the engine must not take it.
         QQmlEngine::setObjectOwnership(config, QQmlEngine::CppOwnership);
         return config;
+    }
+};
+
+/// Stack placement, as a singleton: it holds no state, so one is enough and an
+/// instance per popup would only be more objects saying the same thing.
+struct StackAnchorSingleton {
+    Q_GADGET
+    QML_FOREIGN(frappe::StackAnchor)
+    QML_NAMED_ELEMENT(StackAnchor)
+    QML_SINGLETON
+
+public:
+    static StackAnchor *create(QQmlEngine *engine, QJSEngine *)
+    {
+        return new StackAnchor(engine);
     }
 };
 

@@ -13,6 +13,9 @@ enum class TileKind {
     MinimizedWindow,
     Trash,
     Separator,
+    /// An ordinary file in the file region. A folder there is a Folder, which
+    /// opens into a stack; this one just opens.
+    File,
 };
 
 /// Ordered regions of the dock. Tiles sort by region first, then by their order

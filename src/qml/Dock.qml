@@ -30,6 +30,24 @@ Item {
     signal tileClicked(string tileId, int button, int modifiers)
     signal tileHeld(string tileId)
 
+    /// The StackModel folder tiles open into, injected by the surface factory.
+    /// One per surface: only one stack is open at a time, so one model serves
+    /// whichever folder that is.
+    property var stackModel: null
+
+    /// What the surface needs to accept input over on account of an open stack,
+    /// in surface coordinates, or a null rect when none is open. The surface
+    /// accepts input over the shelf alone, so the factory has to add this to the
+    /// input region or the stack is drawn and dead to the pointer.
+    ///
+    /// While a stack is open this is the **whole output**, not the stack's own
+    /// rectangle. Dismissing a stack by clicking away from it means noticing a
+    /// click that lands nowhere near it, and a click outside the input region is
+    /// not delivered to us at all — it goes to whatever is behind the dock. The
+    /// region therefore covers everything for exactly as long as there is
+    /// something to dismiss, and nothing the moment there is not.
+    signal stackRegionChanged(rect region)
+
     // --- The proportion model -------------------------------------------
     readonly property real iconSize: FrappeConfig.tileSize      // S, the layout cell
     // S/3. The ratio comes from GeometryTuning rather than being written here,
@@ -287,12 +305,25 @@ Item {
     /// against it. A menu opened without an anchor resolves the pointer against
     /// its parent, which on a layer-shell surface it cannot do — it lands at the
     /// origin, and on a shelf that spans the screen that is the far edge.
-    function handle(id, button, modifiers, held, row) {
+    function handle(id, button, modifiers, held, row, kind) {
         let command = dock.controller ? dock.controller.commandFor(button, modifiers, held)
                                       : DockCommand.LaunchOrActivate;
 
         if (command === DockCommand.ShowContextMenu || command === DockCommand.ShowJumpList) {
             menu.openFor(id, repeater.itemAt(row));
+            return;
+        }
+
+        // A folder tile opens into a stack rather than launching anything. The
+        // dock answers this itself: the controller is about applications, and a
+        // folder has none.
+        //
+        // The kind comes from the delegate, which already has it as a required
+        // property. Asking the model again would mean reaching into it from the
+        // view — and would assume a QAbstractItemModel, which the model behind
+        // this is not obliged to be.
+        if (kind === TileKind.Folder) {
+            dock.toggleStack(id, row);
             return;
         }
 
@@ -754,8 +785,8 @@ Item {
                     // those two commands for itself. Everything else goes to
                     // C++ as before; the matrix is still the only place the
                     // mapping is written down.
-                    onActivated: (id, button, modifiers) => dock.handle(id, button, modifiers, false, index)
-                    onHeld: (id) => dock.handle(id, Qt.LeftButton, Qt.NoModifier, true, index)
+                    onActivated: (id, button, modifiers) => dock.handle(id, button, modifiers, false, index, kind)
+                    onHeld: (id) => dock.handle(id, Qt.LeftButton, Qt.NoModifier, true, index, kind)
 
                     // For file drops: the tile asks whether the files it is
                     // being offered can be opened, and then asks for them to be.
@@ -778,5 +809,118 @@ Item {
                 }
             }
         }
+    }
+
+    // --- Stacks -----------------------------------------------------------
+
+    /// The folder whose stack is open, or empty.
+    property string openStackPath: ""
+    /// The row it belongs to, so the anchor can follow the tile as the dock
+    /// reflows around it.
+    property int openStackRow: -1
+
+    /// Opens \a id's stack, or closes it if it is the one already open.
+    /// Clicking the tile of an open stack is how it is dismissed.
+    function toggleStack(id, row) {
+        if (dock.openStackPath === id) {
+            dock.closeStack();
+            return;
+        }
+        dock.openStackPath = id;
+        dock.openStackRow = row;
+        if (dock.stackModel) {
+            dock.stackModel.rootPath = id;
+        }
+    }
+
+    function closeStack() {
+        dock.openStackPath = "";
+        dock.openStackRow = -1;
+    }
+
+    /*
+     * Clicking away from an open stack closes it.
+     *
+     * Behind everything — the shelf, the tiles and the stack itself all sit
+     * above it — so it only ever sees clicks that landed on none of them. That
+     * is what makes it a dismissal rather than a modal grab: a click on an entry
+     * opens the entry, a click on a tile still reaches the tile, and only a
+     * click on nothing in particular counts as "somewhere else".
+     *
+     * It exists only while a stack is open. A permanently live backdrop over the
+     * whole output would take every click on the desktop, which is the failure
+     * the surface mask exists to prevent.
+     */
+    MouseArea {
+        id: stackBackdrop
+
+        objectName: "stackBackdrop"
+
+        anchors.fill: parent
+        z: -1
+        enabled: stack.open
+        visible: enabled
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+
+        onPressed: dock.closeStack()
+    }
+
+    /// Escape dismisses the open stack, as it dismisses every other transient
+    /// thing on the desktop. Enabled only while there is one, so the key is not
+    /// taken from whatever else might want it.
+    Shortcut {
+        sequence: "Escape"
+        enabled: stack.open
+        onActivated: dock.closeStack()
+    }
+
+    StackPopup {
+        id: stack
+
+        objectName: "stackPopup"
+
+        model: dock.stackModel
+        folderPath: dock.openStackPath
+        open: dock.openStackPath.length > 0 && dock.openStackRow >= 0
+        cellSize: dock.iconSize
+        dockPosition: FrappeConfig.position
+        outputWidth: dock.width
+        outputHeight: dock.height
+
+        /// The tile's centre at rest, in surface coordinates.
+        ///
+        /// `restingCentreOfRow`, not the drawn placement. The tile is magnified
+        /// while the pointer is on it — which it is, at the moment the stack
+        /// opens — and the drawn centre slides back as the pointer leaves. That
+        /// is the reference platform's §11 defect, and this binding is where it
+        /// would have entered.
+        anchorCentre: dock.openStackRow >= 0
+                      ? dock.restingOrigin + geometry.restingCentreOfRow(dock.openStackRow)
+                      : 0
+
+        onFileActivated: path => {
+            if (dock.controller) {
+                dock.controller.openPath(path);
+            }
+            dock.closeStack();
+        }
+        onCloseRequested: dock.closeStack()
+
+        // The input region has to follow the stack, not just appear with it: the
+        // stack moves when the dock reflows, and a region left behind would take
+        // clicks over empty desktop and drop them over the stack.
+        onXChanged: dock.publishStackRegion()
+        onYChanged: dock.publishStackRegion()
+        onWidthChanged: dock.publishStackRegion()
+        onHeightChanged: dock.publishStackRegion()
+        onOpenChanged: dock.publishStackRegion()
+    }
+
+    function publishStackRegion() {
+        // The whole output while open, so a click beside the stack reaches the
+        // backdrop instead of falling through to the desktop. See the signal's
+        // declaration for why this is not the stack's own rectangle.
+        dock.stackRegionChanged(stack.open ? Qt.rect(0, 0, dock.width, dock.height)
+                                           : Qt.rect(0, 0, 0, 0));
     }
 }
